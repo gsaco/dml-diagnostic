@@ -1,121 +1,258 @@
-# Finite-Sample Conditioning in Double Machine Learning: A Short Note
+# Finite-Sample Conditioning in Double Machine Learning
 
-This repository contains the code and manuscript for the short communication:
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **"Finite-Sample Conditioning in Double Machine Learning: A Short Note"**
+---
 
-## Overview
+> **"Finite-Sample Conditioning in Double Machine Learning: A Short Communication"**
+>
+> Gabriel Saco  
+> Universidad del Pacífico
 
-Double Machine Learning (DML) provides asymptotically valid inference for low-dimensional parameters in high-dimensional settings. However, finite-sample performance can deteriorate when the empirical Jacobian is nearly singular—a situation arising from poor overlap or strong collinearity between treatment and covariates.
+---
 
-This short communication:
-1. Introduces a simple, interpretable **condition number** $\kappa_{\mathrm{DML}} := 1/|\hat{J}_\theta|$ for the Partially Linear Regression (PLR) model
-2. Establishes a **coverage error bound** showing that miscoverage scales as $\kappa_{\mathrm{DML}}/\sqrt{n} + \kappa_{\mathrm{DML}}\sqrt{n} \cdot r_n$
-3. Characterizes three **conditioning regimes** (well-conditioned, moderately ill-conditioned, severely ill-conditioned)
-4. Provides **Monte Carlo simulations** demonstrating how $\kappa_{\mathrm{DML}}$ predicts coverage failures
-5. Offers **practical diagnostic recommendations** for applied researchers
+## Abstract
+
+Double Machine Learning (DML) provides asymptotically valid inference for low-dimensional parameters in high-dimensional settings. However, finite-sample performance can deteriorate when the empirical Jacobian is nearly singular—a situation arising from poor overlap or strong collinearity between treatment and covariates. This repository accompanies a short communication that:
+
+1. **Introduces** a simple, interpretable **condition number** $\kappa_{\mathrm{DML}} := 1/|\hat{J}_\theta|$ for the Partially Linear Regression (PLR) model
+2. **Establishes** a coverage error bound of order $n^{-1/2} + \sqrt{n}\,r_n + o(1)$
+3. **Derives** a $\kappa$-amplified linearization showing parameter-scale error grows as $\kappa_{\mathrm{DML}}/\sqrt{n} + \kappa_{\mathrm{DML}}\,r_n$
+4. **Characterizes** three conditioning regimes (well-conditioned, moderately ill-conditioned, severely ill-conditioned)
+5. **Provides** Monte Carlo evidence validating $\kappa_{\mathrm{DML}}$ as a practical diagnostic
+6. **Offers** practical recommendations for applied researchers
+
+---
 
 ## Repository Structure
 
 ```
 dml_paper/
+│
 ├── paper/
-│   └── main.tex              # LaTeX source for the short communication
+│   └── main.tex                          # LaTeX source for the short communication
+│
 ├── code/
-│   └── simulations.ipynb     # Jupyter notebook with Monte Carlo simulations
+│   ├── simulation_kappa_dml.ipynb        # Main simulation notebook (reproduces all results)
+│   └── simulations/                      # Reusable Python module
+│       ├── __init__.py                   # Package initialization
+│       └── core.py                       # DGP, DML estimator, Monte Carlo functions
+│
 ├── results/
-│   ├── results_summary.csv   # Simulation results summary
-│   ├── coverage_vs_kappa.png # Coverage vs kappa plot
-│   ├── rmse_vs_kappa.png     # RMSE vs kappa plot
-│   └── theta_distributions.png
-├── archive/                  # Old/legacy files from full paper version
-│   ├── main_full_version.tex
-│   ├── bias_aware_dml_simulations.ipynb
-│   └── kappa_theory_validation.ipynb
-├── requirements.txt          # Python dependencies
-└── README.md                 # This file
+│   ├── simulation_results_full.csv       # Full replication-level data (4,500 rows)
+│   ├── simulation_summary.csv            # Summary statistics by DGP (9 rows)
+│   ├── coverage_vs_kappa.png             # Main figure: coverage vs κ_DML
+│   ├── coverage_vs_kappa.pdf             # Vector format for paper
+│   ├── ci_length_vs_kappa.png            # CI length vs κ_DML
+│   └── ci_length_vs_kappa.pdf            # Vector format for paper
+│
+├── requirements.txt                      # Python dependencies
+├── LICENSE                               # MIT License
+├── CITATION.cff                          # Citation metadata
+└── README.md                             # This file
 ```
 
-## Reproducing the Results
+---
 
-### 1. Create a Virtual Environment (Recommended)
+## Installation
+
+### Prerequisites
+
+- Python 3.8 or higher
+- pip package manager
+
+### Setup
 
 ```bash
-# Create virtual environment
+# Clone the repository
+git clone https://github.com/gsaco/dml_paper.git
+cd dml_paper
+
+# Create and activate a virtual environment (recommended)
 python3 -m venv venv
+source venv/bin/activate  # macOS/Linux
+# venv\Scripts\activate   # Windows
 
-# Activate virtual environment
-# On macOS/Linux:
-source venv/bin/activate
-# On Windows:
-# venv\Scripts\activate
-```
-
-### 2. Install Python Dependencies
-
-```bash
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 3. Run the Simulations
+---
 
-Open and run the Jupyter notebook:
+## Reproducing the Results
+
+### Quick Start (Load Pre-computed Results)
+
+The repository includes pre-computed simulation results. To reproduce figures and tables without re-running the Monte Carlo simulations:
 
 ```bash
 cd code
-jupyter notebook simulations.ipynb
+jupyter notebook simulation_kappa_dml.ipynb
 ```
 
-The notebook will:
-- Generate PLR data with varying overlap levels and covariate correlation
-- Fit DML estimators with 5-fold cross-fitting using Random Forests
-- Compute the condition number $\kappa_{\mathrm{DML}}$ for each design
-- Produce the summary table and figures used in the paper
+In the notebook, ensure `RUN_NEW = False` (the default). This will load results from `results/simulation_results_full.csv` and regenerate all figures and tables.
 
-Results are saved to `results/`.
+### Full Reproduction (Re-run Monte Carlo)
 
-### 4. Compile the Paper
+To fully reproduce the Monte Carlo simulations from scratch:
+
+1. Open `code/simulation_kappa_dml.ipynb`
+2. Set `RUN_NEW = True` in cell 17
+3. Run all cells
+
+**Note:** Full reproduction takes approximately 10–20 minutes with `N_REPS = 500`.
+
+For quick testing, set `N_REPS = 50` (results will be less precise but faster).
+
+---
+
+## Simulation Design
+
+### Data-Generating Process
+
+We use the canonical Partially Linear Regression (PLR) model:
+
+$$Y = D \cdot \theta_0 + g_0(X) + \varepsilon, \quad \varepsilon \sim N(0, 1)$$
+
+$$D = X^\top \beta_D + U, \quad U \sim N(0, \sigma_U^2)$$
+
+$$X \sim N(0, \Sigma(\rho)), \quad \Sigma_{jk} = \rho^{|j-k|}$$
+
+where:
+- $\theta_0 = 1$ is the true treatment effect
+- $g_0(X) = \gamma^\top \sin(X)$ is a nonlinear nuisance function
+- $\beta_D = (1, 0.8, 0.6, 0.4, 0.2, 0, \ldots, 0)^\top$ has decaying coefficients
+- $\gamma = (1, 0.5, 0.25, 0.125, 0.0625, 0, \ldots, 0)^\top$
+
+### Overlap Calibration
+
+We calibrate $\sigma_U^2$ to achieve target $R^2(D|X)$ values:
+
+| Overlap Level | Target $R^2(D|X)$ | Interpretation |
+|---------------|-------------------|----------------|
+| High          | 0.75              | Good overlap: substantial residual variation in $D$ |
+| Moderate      | 0.90              | Limited residual variation |
+| Low           | 0.97              | Poor overlap: $D$ nearly deterministic given $X$ |
+
+### DGP Configurations
+
+We consider 9 DGP configurations spanning three conditioning regimes:
+
+| Group | DGPs | Overlap | Expected $\kappa_{\mathrm{DML}}$ |
+|-------|------|---------|----------------------------------|
+| A     | A1, A2, A3 | High | < 1 (well-conditioned) |
+| B     | B1, B2, B3 | Moderate | 1–2 (moderately ill-conditioned) |
+| C     | C1, C2, C3 | Low | > 2 (severely ill-conditioned) |
+
+---
+
+## Key Results
+
+### Main Findings
+
+| Regime | $\kappa_{\mathrm{DML}}$ Range | Coverage | Interpretation |
+|--------|-------------------------------|----------|----------------|
+| Well-conditioned | 0.5–0.9 | 92.6%–94.0% | Near-nominal (95%) |
+| Moderately ill-conditioned | 1.2–1.6 | 85.2%–93.6% | Degradation at large $n$ |
+| Severely ill-conditioned | 2.1–2.7 | **59.2%–92.4%** | Dramatic undercoverage |
+
+### The Paradox of Larger Samples
+
+A striking finding: increasing $n$ from 500 to 2000 can **worsen** coverage in ill-conditioned designs. For example, comparing C1 ($n=500$) to C2 ($n=2000$):
+- Coverage drops from 92.4% to 62.0%
+- This occurs because larger $n$ shrinks the standard error, but bias (amplified by $\kappa_{\mathrm{DML}}$) remains comparable
+
+### Diagnostic Value
+
+- Correlation between $\kappa_{\mathrm{DML}}$ and coverage: $r = -0.77$
+- Correlation between $\kappa_{\mathrm{DML}}$ and RMSE: $r = 0.88$
+
+---
+
+## Practical Recommendations
+
+We recommend reporting $\kappa_{\mathrm{DML}}$ alongside DML estimates, analogous to first-stage $F$-statistics in IV regression:
+
+| $\kappa_{\mathrm{DML}}$ | Interpretation | Recommendation |
+|-------------------------|----------------|----------------|
+| < 1 | Well-conditioned | Standard inference reliable |
+| 1–2 | Moderately ill-conditioned | Exercise caution; robustness checks advised |
+| ≥ 2 | Severely ill-conditioned | CIs may be substantially distorted |
+
+---
+
+## Output Files
+
+After running the notebook, the following files are generated in `results/`:
+
+| File | Description |
+|------|-------------|
+| `simulation_results_full.csv` | 4,500 rows: one per replication (9 DGPs × 500 reps) |
+| `simulation_summary.csv` | 9 rows: summary statistics by DGP |
+| `coverage_vs_kappa.png/pdf` | **Main figure:** Coverage vs. $\kappa_{\mathrm{DML}}$ |
+| `ci_length_vs_kappa.png/pdf` | CI length vs. $\kappa_{\mathrm{DML}}$ |
+
+---
+
+## Compiling the Paper
 
 ```bash
 cd paper
 pdflatex main.tex
-# Run twice for references:
-pdflatex main.tex
+pdflatex main.tex  # Run twice for references
 ```
 
-## Key Results
+---
 
-The Monte Carlo simulations reveal clear stratification by conditioning:
+## Dependencies
 
-| Regime | $\kappa_{\mathrm{DML}}$ | Coverage |
-|--------|-------------------------|----------|
-| Well-conditioned | 0.7–0.9 | 89%–93% |
-| Moderately ill-conditioned | 1.7–1.8 | 68%–91% |
-| Severely ill-conditioned | 4.8–5.6 | **8.8%**–38.6% |
+See `requirements.txt` for the complete list. Key dependencies:
 
-The striking result: at $n=2000$ with low overlap and $\rho=0.9$, nominal 95% CIs cover the true parameter only **8.8%** of the time.
+- `numpy >= 1.21.0` — Numerical computing
+- `pandas >= 1.3.0` — Data manipulation
+- `scikit-learn >= 1.0.0` — Random Forest, Lasso, cross-validation
+- `matplotlib >= 3.4.0` — Visualization
+- `jupyter >= 1.0.0` — Notebook interface
 
-## Practical Recommendations
-
-We recommend computing and reporting $\kappa_{\mathrm{DML}}$ alongside DML estimates:
-
-- **$\kappa_{\mathrm{DML}} < 1$**: Standard inference is reliable
-- **$1 \le \kappa_{\mathrm{DML}} < 3$**: Exercise caution; consider robustness checks
-- **$\kappa_{\mathrm{DML}} \ge 3$**: Standard CIs are unreliable
+---
 
 ## Citation
 
-If you use this code or methodology, please cite:
+If you use this code or methodology in your research, please cite:
 
 ```bibtex
-@article{dml_conditioning_2024,
-  title={Finite-Sample Conditioning in Double Machine Learning: A Short Note},
-  author={Anonymous},
-  journal={TBD},
-  year={2024}
+@article{saco2024dml_conditioning,
+  title   = {Finite-Sample Conditioning in Double Machine Learning: A Short Communication},
+  author  = {Saco, Gabriel},
+  journal = {Working Paper},
+  year    = {2024},
+  note    = {Universidad del Pacífico}
 }
 ```
 
+---
+
 ## License
 
-MIT License
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+## References
+
+- Chernozhukov, V., Chetverikov, D., Demirer, M., Duflo, E., Hansen, C., Newey, W., & Robins, J. (2018). Double/debiased machine learning for treatment and structural parameters. *The Econometrics Journal*, 21(1), C1–C68.
+- Robinson, P. M. (1988). Root-N-consistent semiparametric regression. *Econometrica*, 56(4), 931–954.
+- Bach, P., Chernozhukov, V., Kurz, M. S., & Spindler, M. (2022). DoubleML: An object-oriented implementation of double machine learning in Python. *Journal of Machine Learning Research*, 23(53), 1–6.
+- Chernozhukov, V., Newey, W. K., & Singh, R. (2023). A simple and general debiased machine learning theorem with finite-sample guarantees. *Biometrika*, 110(1), 257–264.
+
+---
+
+## Contact
+
+For questions or feedback, please open an issue on GitHub or contact the author.
+---
+
+## Contact
+
+For questions or feedback, please open an issue on GitHub or contact the author.

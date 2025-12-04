@@ -1,0 +1,47 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://citation-file-format.github.io for more information.
+
+cff-version: 1.2.0
+title: >-
+  Finite-Sample Conditioning in Double Machine Learning:
+  Replication Code
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Gabriel
+    family-names: Saco
+    affiliation: Universidad del Pacífico
+repository-code: 'https://github.com/gsaco/dml_paper'
+abstract: >-
+  This repository contains replication code for "Finite-Sample
+  Conditioning in Double Machine Learning: A Short Communication."
+  The paper introduces a condition number κ_DML for assessing the
+  reliability of DML inference and provides Monte Carlo evidence
+  showing that large κ_DML predicts coverage failures.
+keywords:
+  - double machine learning
+  - DML
+  - condition number
+  - finite-sample inference
+  - causal inference
+  - partially linear regression
+  - machine learning
+  - econometrics
+license: MIT
+version: '1.0.0'
+date-released: '2024-12-04'
+preferred-citation:
+  type: article
+  authors:
+    - given-names: Gabriel
+      family-names: Saco
+      affiliation: Universidad del Pacífico
+  title: >-
+    Finite-Sample Conditioning in Double Machine Learning:
+    A Short Communication
+  year: 2024
+  journal: Working Paper
+  institution:
+    name: Universidad del Pacífico
