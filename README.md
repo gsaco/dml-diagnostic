@@ -28,29 +28,16 @@ Double Machine Learning (DML) provides asymptotically valid inference for low-di
 ## Repository Structure
 
 ```
-dml_paper/
-│
-├── paper/
-│   └── main.tex                          # LaTeX source for the short communication
-│
-├── code/
-│   ├── simulation_kappa_dml.ipynb        # Main simulation notebook (reproduces all results)
-│   └── simulations/                      # Reusable Python module
-│       ├── __init__.py                   # Package initialization
-│       └── core.py                       # DGP, DML estimator, Monte Carlo functions
-│
-├── results/
-│   ├── simulation_results_full.csv       # Full replication-level data (4,500 rows)
-│   ├── simulation_summary.csv            # Summary statistics by DGP (9 rows)
-│   ├── coverage_vs_kappa.png             # Main figure: coverage vs κ_DML
-│   ├── coverage_vs_kappa.pdf             # Vector format for paper
-│   ├── ci_length_vs_kappa.png            # CI length vs κ_DML
-│   └── ci_length_vs_kappa.pdf            # Vector format for paper
-│
-├── requirements.txt                      # Python dependencies
-├── LICENSE                               # MIT License
-├── CITATION.cff                          # Citation metadata
-└── README.md                             # This file
+dml-condition/
+├── src/dml_condition/          # Core simulation code
+│   ├── __init__.py
+│   └── core.py                 # DGP and DML estimator
+├── notebooks/
+│   └── paper_simulations.ipynb # Monte Carlo simulation
+├── results/                    # Output tables
+├── paper/                      # LaTeX source
+├── requirements.txt
+└── README.md
 ```
 
 ---
@@ -66,13 +53,12 @@ dml_paper/
 
 ```bash
 # Clone the repository
-git clone https://github.com/gsaco/dml_paper.git
-cd dml_paper
+git clone https://github.com/gsaco/dml-condition.git
+cd dml-condition
 
-# Create and activate a virtual environment (recommended)
+# Create virtual environment (recommended)
 python3 -m venv venv
-source venv/bin/activate  # macOS/Linux
-# venv\Scripts\activate   # Windows
+source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -82,23 +68,13 @@ pip install -r requirements.txt
 
 ## Reproducing the Results
 
-### Quick Start (Load Pre-computed Results)
-
-The repository includes pre-computed simulation results. To reproduce figures and tables without re-running the Monte Carlo simulations:
+Run the Monte Carlo simulation:
 
 ```bash
-cd code
-jupyter notebook simulation_kappa_dml.ipynb
+jupyter notebook notebooks/paper_simulations.ipynb
 ```
 
-In the notebook, ensure `RUN_NEW = False` (the default). This will load results from `results/simulation_results_full.csv` and regenerate all figures and tables.
-
-### Full Reproduction (Re-run Monte Carlo)
-
-To fully reproduce the Monte Carlo simulations from scratch:
-
-1. Open `code/simulation_kappa_dml.ipynb`
-2. Set `RUN_NEW = True` in cell 17
+Results are saved to `results/table1_kappa_coverage.csv`.
 3. Run all cells
 
 **Note:** Full reproduction takes approximately 10–20 minutes with `N_REPS = 500`.
