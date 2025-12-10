@@ -400,7 +400,16 @@ def get_nuisance_model(learner: LearnerType, random_state: int = 42) -> BaseEsti
 
 @dataclass
 class DMLResult:
-    """Container for DML estimation results."""
+    """
+    Container for DML estimation results with conditioning diagnostics.
+    
+    Key diagnostic:
+        κ_DML = n / Σ Ûᵢ²  (condition number)
+    
+    The parameter-scale expansion shows:
+        |θ̂ - θ₀| = O_P(κ_DML / √n + κ_DML · r_n)
+    so κ_DML directly amplifies both variance and nuisance bias.
+    """
     theta_hat: float
     kappa_dml: float
     se_dml: float
