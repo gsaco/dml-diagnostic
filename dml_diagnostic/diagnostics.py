@@ -4,9 +4,23 @@ DML Diagnostics Module
 
 Functions for computing and interpreting the DML condition number κ_DML.
 
-Note: κ_DML is a continuous diagnostic measure. We do not propose specific
-thresholds; rather, it should be interpreted in context, much like first-stage
-F-statistics in instrumental variables analysis.
+The condition number κ_DML is a continuous diagnostic measure that captures
+the curvature of the DML orthogonal score. It is defined as:
+
+    κ_DML = n / Σᵢ Ûᵢ²
+
+where Ûᵢ = Dᵢ - m̂(Xᵢ) are the cross-fitted treatment residuals.
+
+IMPORTANT: We do NOT propose specific numerical thresholds for κ_DML.
+Following the approach in Saco (2025), κ_DML should be interpreted as a
+continuous fragility gauge, similar to how first-stage F-statistics are
+used in instrumental variables analysis. The interpretation depends on:
+- Sample size and nuisance complexity
+- Comparison across specifications
+- Context of the specific application
+
+Reference: Saco (2025), "Finite-Sample Failures and Condition-Number 
+Diagnostics in Double Machine Learning"
 """
 
 from typing import Any, Dict, Optional, Tuple
@@ -159,11 +173,20 @@ def kappa_interpretation(
 # Keep classify_regime for backwards compatibility but make it descriptive
 def classify_regime(kappa: float, n: int) -> Dict[str, Any]:
     """
-    Provide a qualitative description of the conditioning regime.
+    Provide a qualitative description of the conditioning.
     
-    Note: We do not propose specific thresholds for κ_DML. This function
-    provides qualitative descriptions to assist interpretation, not
-    definitive classifications.
+    IMPORTANT: This function provides qualitative descriptions to assist
+    interpretation, NOT definitive classifications. We do not propose
+    specific numerical thresholds for κ_DML. The interpretation depends
+    on context and should consider:
+    
+    - How κ_DML varies across specifications and learners
+    - The sample size and complexity of nuisance estimation
+    - Whether estimates are stable or sensitive to choices
+    
+    Following Saco (2025), κ_DML should be treated as a continuous
+    diagnostic, analogous to how F-statistics guide IV interpretation
+    without rigid pass/fail rules.
     
     Parameters
     ----------
@@ -176,45 +199,46 @@ def classify_regime(kappa: float, n: int) -> Dict[str, Any]:
     -------
     dict
         Dictionary with:
-        - regime: qualitative description
+        - description: qualitative characterization
         - interpretation: guidance for practitioners
+        - effective_n: n / κ_DML (effective sample size interpretation)
     """
     if np.isinf(kappa):
         return {
-            "regime": "undefined",
+            "description": "undefined",
             "interpretation": (
-                "DML estimation failed due to zero residual treatment variation."
+                "DML estimation failed due to zero residual treatment variation. "
+                "This indicates perfect predictability of treatment from covariates."
             ),
+            "effective_n": 0,
         }
     
-    # Provide relative description without hard thresholds
+    effective_n = n / kappa if kappa > 0 else n
+    
+    # Provide contextual description without hard thresholds
+    # These descriptions are for guidance only
+    interpretation = (
+        f"κ_DML = {kappa:.2f} corresponds to an effective sample size of "
+        f"approximately {effective_n:.0f}. The confidence interval width "
+        f"scales with κ_DML/√n, and any nuisance error is amplified by κ_DML. "
+        f"Compare this value across specifications to assess stability."
+    )
+    
+    # Relative characterization based on scaling with √n
     kappa_sqrt_n = kappa / np.sqrt(n)
     
-    if kappa_sqrt_n < 0.1:
-        regime = "well-conditioned"
-        interpretation = (
-            "κ_DML is small relative to √n. Standard DML inference should be "
-            "reliable, with variance and bias scaled proportionally to κ_DML."
-        )
+    if kappa_sqrt_n < 0.15:
+        description = "favorable conditioning"
     elif kappa_sqrt_n < 0.5:
-        regime = "moderate"
-        interpretation = (
-            "κ_DML is moderate relative to √n. Consider the impact of "
-            "conditioning on both variance (which scales with κ²) and "
-            "potential bias amplification (which scales with κ · rₙ)."
-        )
+        description = "moderate conditioning"
     else:
-        regime = "challenging"
-        interpretation = (
-            "κ_DML is large relative to √n. The DML estimator may exhibit "
-            "substantial variance inflation and sensitivity to nuisance "
-            "estimation error. Interpret results with caution."
-        )
+        description = "challenging conditioning"
     
     return {
-        "regime": regime,
+        "description": description,
         "interpretation": interpretation,
-        "kappa_sqrt_n": kappa_sqrt_n,
+        "effective_n": effective_n,
+        "kappa_over_sqrt_n": kappa_sqrt_n,
     }
 
 

@@ -25,10 +25,9 @@ orthogonal score. Large κ_DML indicates:
 - Inflated variance and potential bias amplification
 - Fragile inference similar to weak-IV problems
 
-Three conditioning regimes:
-    (i)   Well-conditioned (κ < 5):    Standard DML inference reliable
-    (ii)  Moderate (5 ≤ κ < 20):       Interpret with caution, widen CIs
-    (iii) Severe (κ ≥ 20):             DML inference unreliable
+IMPORTANT: κ_DML is a continuous diagnostic. We do not impose specific
+numerical thresholds. The interpretation depends on context, sample size,
+and how κ_DML varies across specifications.
 
 Reference
 ---------
@@ -37,19 +36,26 @@ in Double Machine Learning." The Econometrics Journal.
 
 Author: Gabriel Saco
 License: MIT
+GitHub: https://github.com/gsaco/dml-diagnostic
 """
 
 from dml_diagnostic.estimator import DMLDiagnostic, DMLResult
 from dml_diagnostic.diagnostics import (
     compute_kappa,
+    kappa_interpretation,
     classify_regime,
     overlap_check,
-    REGIME_THRESHOLDS,
 )
 from dml_diagnostic.plotting import (
     plot_kappa_summary,
     plot_overlap,
     plot_kappa_ci_cone,
+    plot_kappa_comparison,
+    plot_comparison,
+    set_publication_style,
+    save_figure,
+    COLORS,
+    FIGURE_SIZES,
 )
 from dml_diagnostic.reporting import (
     summary_table,
@@ -66,13 +72,19 @@ __all__ = [
     "DMLResult",
     # Diagnostics
     "compute_kappa",
+    "kappa_interpretation",
     "classify_regime", 
     "overlap_check",
-    "REGIME_THRESHOLDS",
     # Plotting
     "plot_kappa_summary",
     "plot_overlap",
     "plot_kappa_ci_cone",
+    "plot_kappa_comparison",
+    "plot_comparison",
+    "set_publication_style",
+    "save_figure",
+    "COLORS",
+    "FIGURE_SIZES",
     # Reporting
     "summary_table",
     "to_latex",
