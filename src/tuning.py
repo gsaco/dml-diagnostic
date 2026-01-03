@@ -1,11 +1,13 @@
 """
-Hyperparameter Tuning for DML Monte Carlo Study.
+Hyperparameter Tuning for Random Forest Learners.
 
-This module provides pre-tuning functionality for Random Forest learners.
-The idea is to tune hyperparameters ONCE per (N, R²) regime, then use
-these fixed parameters in all Monte Carlo replications.
+This module provides pre-tuning functionality for Random Forest learners
+used in the LaLonde empirical application (Section 6).
 
-Author: Gabriel Saco
+For the Monte Carlo simulations (Section 5), fixed hyperparameters are used
+to ensure reproducibility and reduce computational overhead. For the empirical
+application, data-adaptive tuning is appropriate since the optimal parameters
+may differ between experimental and observational samples.
 """
 
 from __future__ import annotations
@@ -16,73 +18,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import RandomizedSearchCV
 
-from src.dgp import generate_data
 from src.learners import RF_PARAM_GRID
-
-
-def tune_rf_hyperparameters(
-    n_samples: int,
-    target_r2: float,
-    random_state: int = 42,
-    n_iter: int = 10,
-    cv: int = 3,
-    n_jobs: int = -1,
-) -> Dict[str, Any]:
-    """
-    Pre-tune Random Forest hyperparameters for a given (N, R²) regime.
-    
-    Generates a validation dataset with the specified parameters and runs
-    RandomizedSearchCV to find optimal hyperparameters for the propensity
-    score model.
-    
-    Parameters
-    ----------
-    n_samples : int
-        Sample size for the tuning dataset.
-    target_r2 : float
-        Target R²(D|X) for the DGP.
-    random_state : int, default 42
-        Random seed for reproducibility.
-    n_iter : int, default 10
-        Number of parameter settings sampled in RandomizedSearchCV.
-    cv : int, default 3
-        Number of cross-validation folds.
-    n_jobs : int, default -1
-        Number of parallel jobs.
-    
-    Returns
-    -------
-    best_params : dict
-        Dictionary containing the best hyperparameters found.
-    """
-    # Generate validation data
-    Y, D, X, info, dgp = generate_data(
-        n=n_samples,
-        target_r2=target_r2,
-        random_state=random_state,
-    )
-    
-    # Create base RF
-    base_rf = RandomForestRegressor(
-        n_estimators=100,
-        random_state=random_state,
-        n_jobs=1,
-    )
-    
-    # Run RandomizedSearchCV on propensity score (m) target
-    search = RandomizedSearchCV(
-        estimator=base_rf,
-        param_distributions=RF_PARAM_GRID,
-        n_iter=n_iter,
-        cv=cv,
-        scoring='neg_mean_squared_error',
-        random_state=random_state,
-        n_jobs=n_jobs,
-    )
-    
-    search.fit(X, D)
-    
-    return search.best_params_
 
 
 def tune_rf_for_data(
@@ -96,19 +32,20 @@ def tune_rf_for_data(
     """
     Tune Random Forest hyperparameters for a specific dataset.
     
-    This is used for the LaLonde application where we tune directly
-    on the real data rather than simulated data.
+    This function is used for the LaLonde empirical application (Section 6)
+    where hyperparameters are tuned separately for experimental and
+    observational samples to achieve best performance on each.
     
     Parameters
     ----------
     X : ndarray of shape (n, p)
         Covariate matrix.
     y : ndarray of shape (n,)
-        Target variable (treatment or outcome).
+        Target variable (treatment D or outcome Y).
     random_state : int, default 42
         Random seed for reproducibility.
     n_iter : int, default 10
-        Number of parameter settings sampled.
+        Number of parameter settings sampled in randomized search.
     cv : int, default 3
         Number of cross-validation folds.
     n_jobs : int, default -1
@@ -117,7 +54,15 @@ def tune_rf_for_data(
     Returns
     -------
     best_params : dict
-        Dictionary containing the best hyperparameters.
+        Dictionary containing the best hyperparameters:
+        - max_depth: Maximum tree depth (None, 10, or 20)
+        - min_samples_leaf: Minimum samples per leaf (1, 5, or 10)
+        - max_features: Features per split ('sqrt' or None)
+    
+    Notes
+    -----
+    The tuned parameters are used with get_learner('RF_Tuned', params=best_params)
+    to create a configured RandomForestRegressor.
     """
     base_rf = RandomForestRegressor(
         n_estimators=100,
@@ -141,6 +86,5 @@ def tune_rf_for_data(
 
 
 __all__ = [
-    'tune_rf_hyperparameters',
     'tune_rf_for_data',
 ]

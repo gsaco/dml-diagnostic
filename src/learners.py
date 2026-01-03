@@ -1,16 +1,31 @@
 """
-Learner Factory for DML Monte Carlo Study.
+Machine Learning Learners for Double Machine Learning.
 
-This module provides a factory function for creating nuisance learners,
-including OLS (for misspecification control), regularized methods (Lasso),
-tree-based methods (RF, XGB), and neural networks (MLP).
+This module provides a factory function for creating nuisance learners used
+in DML estimation, including traditional methods (OLS, Lasso), tree-based
+methods (Random Forest, Gradient Boosting), and neural networks (MLP).
 
-Key Features:
-    - Default and tuned variants of RF and XGB
-    - Oracle learner for theoretical lower bound
-    - All learners are scikit-learn compatible
+Special Learners for Mechanism Validation
+-----------------------------------------
+- OracleLearner: Returns true nuisance values m₀(X) or ℓ₀(X). Establishes
+  the theoretical lower bound with zero approximation error.
 
-Author: DML Monte Carlo Study
+- CorruptedOracle: Returns true values with multiplicative bias (1 + δ).
+  Used in Section 5 to isolate how κ amplifies nuisance bias per Theorem 3.8.
+  The multiplicative form ensures bias survives DML's centering.
+
+Learner Selection Rationale
+---------------------------
+- OLS: Correctly specified for linear m₀(X), misspecified for polynomial g₀(X)
+- Lasso: Regularized linear model, introduces shrinkage bias
+- RF: Can approximate nonlinear functions, introduces regularization bias
+- MLP: Deep learner, requires standardization for convergence
+
+References
+----------
+- Theorem 3.8: Corrupted Oracle validates the exact error decomposition
+- Section 5.1: Learner comparison in Monte Carlo study
+- Section 6: LaLonde application with multiple learners (Table 8)
 """
 
 from __future__ import annotations
@@ -47,8 +62,6 @@ RF_PARAM_GRID: Dict[str, Any] = {
 }
 
 
-
-
 # =============================================================================
 # ORACLE LEARNER
 # =============================================================================
@@ -57,27 +70,24 @@ class OracleLearner(BaseEstimator, RegressorMixin):
     """
     Oracle learner that returns true nuisance function values.
     
-    This learner accepts a DGP object and, when fit() is called,
-    simply stores the true m₀(X) or ℓ₀(X) values. When predict() is called,
-    it returns the stored true values.
-    
-    This establishes the theoretical lower bound of error. Any error in
-    ML models beyond this Oracle error is attributable to the "Bias
-    Amplification" mechanism.
+    The Oracle learner provides the theoretical lower bound for
+    nuisance estimation error. With zero approximation error,
+    any remaining estimation error is attributable to sampling
+    variance only, isolating the variance inflation mechanism.
     
     Parameters
     ----------
     dgp : DGP
-        The data generating process object.
-    target : str, default 'm'
-        Which nuisance function to return: 'm' for m₀(X), 'l' for ℓ₀(X).
+        The data generating process object containing m₀(X) and ℓ₀(X).
+    target : {'m', 'l'}, default 'm'
+        Which nuisance function to return:
+        - 'm': propensity score m₀(X) = E[D|X]
+        - 'l': reduced-form outcome ℓ₀(X) = E[Y|X]
     
-    Attributes
-    ----------
-    true_values_ : ndarray
-        The true nuisance function values from training.
-    X_train_ : ndarray
-        The training covariates (for matching during predict).
+    Notes
+    -----
+    Used in the baseline simulations to establish that the DML estimator
+    achieves nominal coverage when nuisance functions are known.
     """
     
     def __init__(
@@ -97,18 +107,10 @@ class OracleLearner(BaseEstimator, RegressorMixin):
         **kwargs
     ) -> "OracleLearner":
         """
-        Store the true nuisance function values.
+        Store reference to training data (no actual fitting needed).
         
-        Parameters
-        ----------
-        X : ndarray of shape (n, p)
-            Covariate matrix.
-        y : ndarray of shape (n,)
-            Target values (ignored, we use true values from DGP).
-        
-        Returns
-        -------
-        self
+        The Oracle computes true values directly from the DGP,
+        so fit() simply records the training covariates.
         """
         if self.dgp is None:
             raise ValueError("DGP must be provided for Oracle learner")
@@ -124,20 +126,9 @@ class OracleLearner(BaseEstimator, RegressorMixin):
     
     def predict(self, X: NDArray) -> NDArray:
         """
-        Return the true nuisance function values.
+        Return true nuisance function values.
         
-        For Oracle to work in cross-fitting context, we compute
-        the true values for the new X directly.
-        
-        Parameters
-        ----------
-        X : ndarray of shape (n, p)
-            Covariate matrix.
-        
-        Returns
-        -------
-        predictions : ndarray of shape (n,)
-            True nuisance function values.
+        Computes m₀(X) or ℓ₀(X) directly from the DGP for any input X.
         """
         if self.dgp is None:
             raise ValueError("DGP must be provided for Oracle learner")
@@ -149,44 +140,46 @@ class OracleLearner(BaseEstimator, RegressorMixin):
 
 
 # =============================================================================
-# CORRUPTED ORACLE LEARNER (For Bias Amplification Analysis)
+# CORRUPTED ORACLE (Section 5: Bias Amplification Mechanism)
 # =============================================================================
 
 class CorruptedOracle(BaseEstimator, RegressorMixin):
     """
-    Corrupted Oracle that returns true nuisance values with multiplicative bias.
+    Corrupted Oracle for validating the bias amplification mechanism.
     
-    This learner isolates the pure effect of κ* on bias amplification by
-    injecting a known, multiplicative bias (1 + δ) into perfect nuisance estimates.
+    This learner returns true nuisance values with controlled multiplicative
+    bias, used to validate Theorem 3.8's prediction that κ acts as an
+    error multiplier:
+        θ̂ - θ₀ ≈ κ × Rem_n
     
-    From our theory:
-        θ̂ - θ₀ ≈ κ* × B_n + S_n + R_n
+    By setting predictions = truth × (1 + δ), we inject known bias δ and
+    verify that |θ̂ - θ₀| ∝ κ × δ (Figure 1b in the paper).
     
-    Where B_n is the nuisance bias. By setting predictions = truth × (1 + δ),
-    we can verify that |θ̂ - θ₀| ∝ κ* × δ, proving κ* is a pure multiplier.
-    
-    Note on Bias Injection and DML Centering
-    -----------------------------------------
-    This implementation uses **multiplicative bias** (1 + δ) instead of additive
-    bias. Multiplicative bias survives DML's centering of residuals because it
-    scales the entire function rather than shifting it by a constant that could
-    be absorbed into the intercept.
+    Multiplicative vs Additive Bias
+    -------------------------------
+    Multiplicative bias (1 + δ) is used instead of additive bias because:
+    - DML centers residuals, absorbing constant shifts into the intercept
+    - Multiplicative bias scales the entire function, surviving centering
+    - This isolates the pure κ amplification effect
     
     Parameters
     ----------
     true_function_callback : callable
-        A function that takes X and returns the true nuisance values.
-        E.g., dgp.m0 or dgp.ell0.
+        Function that takes X and returns true nuisance values.
+        Typically dgp.m0 or dgp.ell0.
     bias : float, default 0.01
         Multiplicative bias factor. Predictions = truth × (1 + bias).
     
-    Examples
+    See Also
     --------
-    >>> corrupted_m = CorruptedOracle(dgp.m0, bias=0.05)
-    >>> corrupted_m.fit(X, D)  # Does nothing
-    >>> predictions = corrupted_m.predict(X)  # Returns m0(X) × 1.05
+    get_corrupted_oracle_pair : Creates matched pair for m and ℓ
+    
+    References
+    ----------
+    - Section 5: Corrupted Oracle Monte Carlo design
+    - Theorem 3.8: Exact decomposition showing κ as multiplier
+    - Figure 1: Bias amplification validation
     """
-
     
     def __init__(
         self,
@@ -197,21 +190,14 @@ class CorruptedOracle(BaseEstimator, RegressorMixin):
         self.bias = bias
     
     def fit(self, X: NDArray, y: NDArray, **kwargs) -> "CorruptedOracle":
-        """
-        Fit method (no-op for CorruptedOracle).
-        
-        The CorruptedOracle doesn't learn anything - it just returns
-        the true values plus bias.
-        """
-        # No fitting needed - we use the true function callback
+        """No fitting needed; returns biased true values directly."""
         return self
     
     def predict(self, X: NDArray) -> NDArray:
         """
         Return true nuisance values with multiplicative bias.
         
-        Uses multiplicative bias (1 + bias) instead of additive bias
-        to ensure the bias survives DML's centering of residuals.
+        Computes: truth(X) × (1 + δ)
         
         Parameters
         ----------
@@ -221,13 +207,12 @@ class CorruptedOracle(BaseEstimator, RegressorMixin):
         Returns
         -------
         predictions : ndarray of shape (n,)
-            True nuisance values × (1 + bias).
+            Biased nuisance predictions.
         """
         if self.true_function_callback is None:
             raise ValueError("true_function_callback must be provided")
         
         truth = self.true_function_callback(X)
-        # Use multiplicative bias to survive DML centering
         return truth * (1.0 + self.bias)
 
 
@@ -237,23 +222,27 @@ def get_corrupted_oracle_pair(
     bias_l: float = 0.01,
 ) -> tuple[CorruptedOracle, CorruptedOracle]:
     """
-    Get a pair of CorruptedOracle learners for both nuisance functions.
+    Create paired Corrupted Oracle learners for both nuisance functions.
     
     Parameters
     ----------
     dgp : DGP
         The data generating process.
     bias_m : float, default 0.01
-        Bias to add to m₀(X).
+        Multiplicative bias for m₀(X): m̂(X) = m₀(X) × (1 + bias_m)
     bias_l : float, default 0.01
-        Bias to add to ℓ₀(X).
+        Multiplicative bias for ℓ₀(X): ℓ̂(X) = ℓ₀(X) × (1 + bias_l)
     
     Returns
     -------
-    corrupted_m : CorruptedOracle
-        Corrupted oracle for m₀(X) = E[D|X].
-    corrupted_l : CorruptedOracle
-        Corrupted oracle for ℓ₀(X) = E[Y|X].
+    corrupted_m, corrupted_l : CorruptedOracle
+        Corrupted oracle learners for treatment and outcome models.
+    
+    Notes
+    -----
+    Setting bias_m = bias_l ("same-sign" bias) creates partial cancellation
+    in the DML residuals. Setting bias_m = -bias_l ("opposite-sign" bias)
+    maximizes amplification, as validated in Table 3.
     """
     return (
         CorruptedOracle(true_function_callback=dgp.m0, bias=bias_m),
@@ -279,34 +268,40 @@ def get_learner(
     Parameters
     ----------
     name : str
-        Learner name: 'OLS', 'Lasso', 'RF', 'RF_Tuned', 'MLP', 'Oracle'.
+        Learner name. Supported values:
+        - 'OLS': Linear regression (correctly specified for m₀, misspecified for g₀)
+        - 'Lasso': L1-regularized linear regression with CV
+        - 'Ridge': L2-regularized linear regression with CV
+        - 'RF': Random Forest with fixed hyperparameters
+        - 'RF_Tuned': Random Forest with tuned hyperparameters
+        - 'GBM': Histogram-based Gradient Boosting
+        - 'MLP': Multi-layer perceptron with standardization
+        - 'Oracle': Returns true nuisance values (requires dgp)
+        - 'CorruptedOracle': Biased true values (requires dgp)
     tuned : bool, default False
-        For backward compatibility. If True and name is 'RF',
-        will return the tuned variant.
+        Backward compatibility flag. If True and name='RF', returns RF_Tuned.
     dgp : DGP or None, default None
-        Required for Oracle learner.
+        Required for Oracle and CorruptedOracle learners.
     random_state : int, default 42
         Random state for reproducibility.
     n_jobs : int, default -1
-        Number of parallel jobs.
+        Number of parallel jobs for parallelizable learners.
     params : dict or None, default None
-        Pre-tuned hyperparameters for RF_Tuned. If provided, returns a
-        RandomForestRegressor with these params. If None, returns
-        RandomizedSearchCV for pre-tuning phase.
+        Pre-tuned hyperparameters for RF_Tuned.
     
     Returns
     -------
-    model : sklearn estimator
-        Configured regression model.
+    model : BaseEstimator
+        Configured scikit-learn compatible regression model.
     
     Raises
     ------
     ValueError
-        If unknown learner name or if XGBoost is not installed.
+        If unknown learner name or missing dgp for Oracle learners.
     """
     name_upper = name.upper()
     
-    # Handle backward compatibility with tuned flag
+    # Backward compatibility
     if tuned:
         if 'RF' in name_upper and 'TUNED' not in name_upper:
             name_upper = 'RF_TUNED'
@@ -326,15 +321,13 @@ def get_learner(
         )
     
     elif name_upper == 'RIDGE':
-        # Ridge regression with built-in cross-validation
         return RidgeCV(
             cv=5,
             fit_intercept=True,
         )
     
     elif name_upper == 'RF':
-        # Fast RF with sensible fixed hyperparameters (no tuning overhead)
-        # Good defaults from empirical studies: max_depth=15, min_samples_leaf=5
+        # Fixed hyperparameters for consistent simulation behavior
         return RandomForestRegressor(
             n_estimators=200,
             max_depth=15,
@@ -345,19 +338,19 @@ def get_learner(
         )
     
     elif name_upper == 'RF_TUNED':
-        # If params provided, use fixed hyperparameters (post pre-tuning)
         if params is not None:
+            # Use pre-tuned hyperparameters
             return RandomForestRegressor(
                 n_estimators=200,
                 random_state=random_state,
                 n_jobs=n_jobs,
                 **params,
             )
-        # Otherwise, return search object for pre-tuning phase
+        # Return search object for tuning phase
         base_rf = RandomForestRegressor(
             n_estimators=100,
             random_state=random_state,
-            n_jobs=1,  # RandomizedSearchCV handles parallelism
+            n_jobs=1,
         )
         return RandomizedSearchCV(
             estimator=base_rf,
@@ -368,11 +361,8 @@ def get_learner(
             random_state=random_state,
             n_jobs=n_jobs,
         )
-    
 
     elif name_upper == 'GBM':
-        # Gradient Boosting with sklearn's HistGradientBoostingRegressor
-        # Faster than traditional GradientBoostingRegressor, handles missing values
         from sklearn.ensemble import HistGradientBoostingRegressor
         return HistGradientBoostingRegressor(
             max_iter=100,
@@ -382,6 +372,7 @@ def get_learner(
         )
     
     elif name_upper == 'MLP':
+        # StandardScaler required for neural network convergence
         return make_pipeline(
             StandardScaler(),
             MLPRegressor(
@@ -405,39 +396,17 @@ def get_learner(
     elif name_upper == 'CORRUPTEDORACLE' or name_upper == 'CORRUPTED_ORACLE':
         if dgp is None:
             raise ValueError("DGP must be provided for CorruptedOracle learner")
-        # Default bias; use get_corrupted_oracle_pair for custom bias
         return CorruptedOracle(true_function_callback=dgp.m0, bias=0.01)
     
     else:
         raise ValueError(
             f"Unknown learner: '{name}'. "
-            f"Choose from: OLS, Lasso, RF_Tuned, MLP, Oracle, CorruptedOracle"
+            f"Choose from: OLS, Lasso, Ridge, RF, RF_Tuned, GBM, MLP, Oracle, CorruptedOracle"
         )
 
 
-def get_oracle_pair(
-    dgp: "DGP"
-) -> tuple[OracleLearner, OracleLearner]:
-    """
-    Get a pair of Oracle learners for both nuisance functions.
-    
-    Parameters
-    ----------
-    dgp : DGP
-        The data generating process.
-    
-    Returns
-    -------
-    oracle_m : OracleLearner
-        Oracle for m₀(X) = E[D|X].
-    oracle_l : OracleLearner
-        Oracle for ℓ₀(X) = E[Y|X].
-    """
-    return OracleLearner(dgp=dgp, target='m'), OracleLearner(dgp=dgp, target='l')
-
-
 # =============================================================================
-# STRUCTURAL KAPPA COMPUTATION
+# STRUCTURAL κ COMPUTATION
 # =============================================================================
 
 def compute_structural_kappa(
@@ -445,14 +414,17 @@ def compute_structural_kappa(
     m0_X: NDArray,
 ) -> float:
     """
-    Compute the structural condition number κ* from true nuisance values.
+    Compute structural condition number κ from true nuisance values.
     
-    This is used in Corrupted Oracle analysis to get the "true" κ* before
-    bias is injected. The structural κ* should be constant across all
-    bias levels for a given R² regime.
+    The structural κ is computed from true propensity residuals V = D - m₀(X),
+    making it invariant to learner bias. This is essential for Corrupted Oracle
+    analysis where estimated κ̂ from biased learners would be contaminated.
     
-    From math.tex:
-        κ* = σ_D² / σ_V² = 1 / (1 - R²(D|X))
+    Definition (Definition 3.5 in paper)
+    ------------------------------------
+    κ = σ²_D / σ²_V = 1 / (1 - R²(D|X))
+    
+    where σ²_V = Var(D - m₀(X)) is the variance of true treatment residuals.
     
     Parameters
     ----------
@@ -466,13 +438,19 @@ def compute_structural_kappa(
     structural_kappa : float
         The structural condition number.
     
+    Notes
+    -----
+    Table 5 in the paper verifies that structural κ remains constant
+    across bias levels δ for a given R² regime, confirming this metric
+    correctly captures the DGP's identification strength.
+    
     Examples
     --------
     >>> from src.dgp import generate_data
     >>> Y, D, X, info, dgp = generate_data(n=1000, target_r2=0.90)
-    >>> structural_kappa = compute_structural_kappa(D, info['m0_X'])
-    >>> print(f"κ* ≈ {structural_kappa:.1f}")  # Should be ~10 for R²=0.90
-    κ* ≈ 10.0
+    >>> kappa = compute_structural_kappa(D, info['m0_X'])
+    >>> print(f"κ ≈ {kappa:.1f}")  # Expected: ~10 for R²=0.90
+    κ ≈ 10.0
     """
     n = len(D)
     V_true = D - m0_X  # True treatment residual
@@ -486,25 +464,27 @@ def compute_structural_kappa(
 
 
 # =============================================================================
-# AVAILABLE LEARNERS
+# LEARNER SETS
 # =============================================================================
 
+# All available learners
 AVAILABLE_LEARNERS = ['OLS', 'Lasso', 'Ridge', 'RF', 'RF_Tuned', 'GBM', 'MLP']
 
-# For LaLonde application: comprehensive learner comparison
+# LaLonde application (Section 6, Table 8): comprehensive comparison
 LALONDE_LEARNERS = ['OLS', 'Lasso', 'Ridge', 'RF_Tuned', 'GBM', 'MLP']
 
-# For simulation study: RF (fast) instead of RF_Tuned for JCI-standard replications
+# Simulation study: RF (fixed params) for computational efficiency
 SIMULATION_LEARNERS = ['OLS', 'Lasso', 'RF', 'MLP']
 
 __all__ = [
     'OracleLearner',
     'CorruptedOracle',
     'get_learner',
-    'get_oracle_pair',
     'get_corrupted_oracle_pair',
     'compute_structural_kappa',
     'AVAILABLE_LEARNERS',
+    'LALONDE_LEARNERS',
     'SIMULATION_LEARNERS',
     'LEARNER_NAMES',
+    'RF_PARAM_GRID',
 ]

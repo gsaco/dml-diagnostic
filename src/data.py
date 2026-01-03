@@ -1,23 +1,29 @@
 """
-LaLonde Data Loader for DML Empirical Application.
+LaLonde Data Loader for Empirical Application.
 
 This module provides functions to load the LaLonde (1986) / Dehejia-Wahba (1999)
-dataset for comparing experimental and observational causal inference.
+dataset for the empirical illustration in Section 6 of "Ill-Conditioned
+Orthogonal Scores in Double Machine Learning."
 
-The LaLonde dataset is a canonical benchmark in causal inference, where the
-experimental sample (NSW) provides a "ground truth" against which observational
-methods can be validated.
+The LaLonde dataset is a canonical benchmark in causal inference where the
+randomized experimental sample (NSW) provides ground truth against which
+observational methods can be validated.
 
-Key Features:
-    - Two modes: 'experimental' (NSW only) and 'observational' (NSW treated + PSID control)
-    - Standardization of continuous covariates for MLP convergence
-    - Returns (y, d, X) tuple compatible with DML estimator
+Experimental vs Observational Samples
+-------------------------------------
+- Experimental (NSW): Randomized → strong overlap → low κ ≈ 1-2
+- Observational (NSW-PSID): Selection bias → weak overlap → high κ > 2
 
-References:
-    - LaLonde, R. (1986). Evaluating the Econometric Evaluations of Training Programs.
-    - Dehejia, R. & Wahba, S. (1999). Causal Effects in Nonexperimental Studies.
+Per Theorem 3.11, higher κ in the observational sample should produce
+greater sensitivity to learner choice and wider dispersion of estimates,
+which is confirmed in Figure 3 (forest plot).
 
-Author: DML Monte Carlo Study
+Data Sources
+------------
+- LaLonde, R. (1986). Evaluating the Econometric Evaluations of Training
+  Programs with Experimental Data. American Economic Review 76(4): 604-620.
+- Dehejia, R. & Wahba, S. (1999). Causal Effects in Nonexperimental Studies:
+  Reevaluating the Evaluation of Training Programs. JASA 94(448): 1053-1062.
 """
 
 from __future__ import annotations
@@ -35,8 +41,7 @@ from sklearn.preprocessing import StandardScaler
 # CONSTANTS
 # =============================================================================
 
-# URLs for Dehejia-Wahba data (hosted on Rajeev Dehejia's website)
-# Using nswre74 files which include the re74 covariate (10 columns)
+# URLs for Dehejia-Wahba data (NBER hosting)
 NSW_TREATED_URL = "https://users.nber.org/~rdehejia/data/nswre74_treated.txt"
 NSW_CONTROL_URL = "https://users.nber.org/~rdehejia/data/nswre74_control.txt"
 PSID_CONTROL_URL = "https://users.nber.org/~rdehejia/data/psid_controls.txt"
@@ -47,13 +52,14 @@ COLUMN_NAMES = [
     'married', 'nodegree', 're74', 're75', 're78'
 ]
 
-# Covariates for the analysis
+# Covariates used in the analysis
 COVARIATE_COLS = ['age', 'education', 'black', 'hispanic', 'married', 'nodegree', 're74', 're75']
 CONTINUOUS_COLS = ['age', 'education', 're74', 're75']
 BINARY_COLS = ['black', 'hispanic', 'married', 'nodegree']
 
-# Known experimental benchmark (for reference)
-EXPERIMENTAL_BENCHMARK = 1794  # Approximate experimental estimate
+# Experimental benchmark ATE (Section 6)
+# This is the "ground truth" from the randomized experiment
+EXPERIMENTAL_BENCHMARK = 1794
 
 
 # =============================================================================
@@ -62,22 +68,27 @@ EXPERIMENTAL_BENCHMARK = 1794  # Approximate experimental estimate
 
 def _load_dehejia_wahba_txt(url: str) -> pd.DataFrame:
     """
-    Load a Dehejia-Wahba formatted text file.
+    Load a Dehejia-Wahba formatted text file from URL.
     
     Parameters
     ----------
     url : str
-        URL to the data file.
+        URL to the whitespace-separated data file.
     
     Returns
     -------
     df : pd.DataFrame
-        Loaded dataframe.
+        Loaded dataframe with standard column names.
+    
+    Raises
+    ------
+    RuntimeError
+        If data cannot be loaded (e.g., network issues).
     """
     try:
         df = pd.read_csv(
             url, 
-            sep=r'\s+',  # whitespace separated
+            sep=r'\s+',  # Whitespace separated
             header=None, 
             names=COLUMN_NAMES
         )
@@ -85,7 +96,7 @@ def _load_dehejia_wahba_txt(url: str) -> pd.DataFrame:
     except Exception as e:
         raise RuntimeError(
             f"Failed to load data from {url}. "
-            f"Check your internet connection. Error: {e}"
+            f"Check internet connection. Error: {e}"
         )
 
 
@@ -99,50 +110,50 @@ def load_lalonde(
     
     This function loads the canonical LaLonde dataset in two modes:
     - 'experimental': NSW treated vs. NSW control (randomized experiment)
-    - 'observational': NSW treated vs. PSID-1 control (observational comparison)
+    - 'observational': NSW treated vs. PSID control (observational comparison)
     
-    The experimental sample provides a benchmark treatment effect (~$1794),
-    while the observational sample is known to produce biased estimates
-    due to selection on unobservables and weak overlap.
+    The experimental sample provides a benchmark treatment effect (~$1,794),
+    while the observational sample exhibits selection bias and weak overlap.
+    Per Theorem 3.11, the higher κ in the observational sample should
+    produce greater learner sensitivity.
     
     Parameters
     ----------
     mode : {'experimental', 'observational'}, default 'observational'
         Which sample to load:
         - 'experimental': NSW treated + NSW control (n ≈ 445)
-        - 'observational': NSW treated + PSID-1 control (n ≈ 2675)
+        - 'observational': NSW treated + PSID control (n ≈ 2,675)
     standardize : bool, default True
         Whether to standardize continuous covariates (age, education, re74, re75).
-        Recommended for MLP convergence.
+        Recommended for neural network convergence.
     return_df : bool, default False
         If True, also return the full DataFrame.
     
     Returns
     -------
     y : ndarray of shape (n,)
-        Outcome variable (re78 - earnings in 1978).
+        Outcome variable (re78 - earnings in 1978, dollars).
     d : ndarray of shape (n,)
-        Treatment indicator (1 = NSW training, 0 = control).
+        Treatment indicator (1 = NSW job training program, 0 = control).
     X : ndarray of shape (n, 8)
-        Covariate matrix [age, education, black, hispanic, married, nodegree, re74, re75].
+        Covariate matrix [age, education, black, hispanic, married, 
+        nodegree, re74, re75].
     df : pd.DataFrame (optional)
         Full dataframe if return_df=True.
+    
+    Notes
+    -----
+    The experimental sample has low κ ≈ 1-2 because treatment was randomized,
+    ensuring strong overlap. The observational sample has higher κ because
+    PSID controls differ systematically from NSW participants (different
+    labor market attachment, demographics). This creates the "ill-conditioned"
+    setting where DML estimates are sensitive to learner choice.
     
     Examples
     --------
     >>> y, d, X = load_lalonde(mode='experimental')
-    >>> print(f"N = {len(y)}, Treated = {d.sum()}")
+    >>> print(f"N = {len(y)}, Treated = {int(d.sum())}")
     N = 445, Treated = 185
-    
-    >>> y, d, X = load_lalonde(mode='observational')
-    >>> print(f"N = {len(y)}, Treated = {d.sum()}")
-    N = 2675, Treated = 185
-    
-    Notes
-    -----
-    The experimental sample has good overlap (low κ*) because treatment was
-    randomized. The observational sample has poor overlap (high κ*) because
-    the PSID control group differs systematically from NSW participants.
     """
     mode = mode.lower()
     if mode not in ['experimental', 'observational']:
@@ -171,7 +182,6 @@ def load_lalonde(
     # Standardize continuous covariates if requested
     if standardize:
         X = X_raw.copy()
-        # Get indices of continuous columns
         cont_indices = [COVARIATE_COLS.index(col) for col in CONTINUOUS_COLS]
         scaler = StandardScaler()
         X[:, cont_indices] = scaler.fit_transform(X[:, cont_indices])
@@ -191,115 +201,13 @@ def load_lalonde(
     return y, d, X
 
 
-def load_lalonde_experimental(
-    standardize: bool = True,
-    return_df: bool = False,
-) -> Tuple[NDArray, NDArray, NDArray] | Tuple[NDArray, NDArray, NDArray, pd.DataFrame]:
-    """
-    Convenience function to load the experimental (NSW) sample.
-    
-    See load_lalonde for full documentation.
-    """
-    return load_lalonde(mode='experimental', standardize=standardize, return_df=return_df)
-
-
-def load_lalonde_observational(
-    standardize: bool = True,
-    return_df: bool = False,
-) -> Tuple[NDArray, NDArray, NDArray] | Tuple[NDArray, NDArray, NDArray, pd.DataFrame]:
-    """
-    Convenience function to load the observational (NSW-PSID) sample.
-    
-    See load_lalonde for full documentation.
-    """
-    return load_lalonde(mode='observational', standardize=standardize, return_df=return_df)
-
-
-def get_propensity_trimmed_sample(
-    y: NDArray,
-    d: NDArray,
-    X: NDArray,
-    alpha: float = 0.1,
-    propensity_model: Optional[object] = None,
-) -> Tuple[NDArray, NDArray, NDArray, NDArray]:
-    """
-    Trim sample based on propensity score overlap.
-    
-    Removes observations with extreme propensity scores to improve overlap.
-    This is a standard robustness check in observational causal inference.
-    
-    Parameters
-    ----------
-    y : ndarray of shape (n,)
-        Outcome variable.
-    d : ndarray of shape (n,)
-        Treatment indicator.
-    X : ndarray of shape (n, p)
-        Covariate matrix.
-    alpha : float, default 0.1
-        Trimming threshold. Keeps observations where α < e(X) < 1-α.
-    propensity_model : sklearn estimator, optional
-        Fitted propensity score model. If None, fits a LogisticRegression.
-    
-    Returns
-    -------
-    y_trimmed : ndarray
-        Trimmed outcome.
-    d_trimmed : ndarray
-        Trimmed treatment.
-    X_trimmed : ndarray
-        Trimmed covariates.
-    e_hat : ndarray
-        Propensity scores for trimmed sample.
-    
-    Notes
-    -----
-    As α increases, the sample size decreases but overlap improves (lower κ*).
-    This creates a bias-variance tradeoff: better overlap vs. less data.
-    """
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.calibration import CalibratedClassifierCV
-    from sklearn.ensemble import RandomForestClassifier
-    
-    if alpha < 0 or alpha >= 0.5:
-        raise ValueError(f"alpha must be in [0, 0.5), got {alpha}")
-    
-    # Fit propensity model if not provided
-    if propensity_model is None:
-        # Use calibrated random forest for better probability estimates
-        base_clf = RandomForestClassifier(
-            n_estimators=100,
-            max_depth=5,
-            random_state=42,
-            n_jobs=-1,
-        )
-        propensity_model = CalibratedClassifierCV(base_clf, cv=5)
-        propensity_model.fit(X, d)
-    
-    # Get propensity scores
-    e_hat = propensity_model.predict_proba(X)[:, 1]
-    
-    # Trim based on threshold
-    if alpha > 0:
-        mask = (e_hat > alpha) & (e_hat < (1 - alpha))
-    else:
-        mask = np.ones(len(y), dtype=bool)
-    
-    return (
-        y[mask],
-        d[mask],
-        X[mask],
-        e_hat[mask],
-    )
-
-
 # =============================================================================
-# SAMPLE INFO
+# SAMPLE DIAGNOSTICS
 # =============================================================================
 
 def get_sample_summary(y: NDArray, d: NDArray, X: NDArray) -> dict:
     """
-    Get summary statistics for a sample.
+    Compute summary statistics for a sample.
     
     Parameters
     ----------
@@ -313,13 +221,18 @@ def get_sample_summary(y: NDArray, d: NDArray, X: NDArray) -> dict:
     Returns
     -------
     summary : dict
-        Dictionary with sample summary statistics.
+        Dictionary containing:
+        - n, n_treated, n_control: Sample sizes
+        - prop_treated: Treatment proportion
+        - mean_outcome, mean_outcome_treated, mean_outcome_control: Outcomes
+        - naive_ate: Simple difference in means (biased in observational data)
+        - n_covariates: Number of covariates
     """
     n = len(y)
     n_treated = int(d.sum())
     n_control = n - n_treated
     
-    # Create boolean masks (handle float treatment indicator)
+    # Boolean masks (handle float treatment indicator)
     treated_mask = d > 0.5
     control_mask = d < 0.5
     
@@ -342,9 +255,6 @@ def get_sample_summary(y: NDArray, d: NDArray, X: NDArray) -> dict:
 
 __all__ = [
     'load_lalonde',
-    'load_lalonde_experimental',
-    'load_lalonde_observational',
-    'get_propensity_trimmed_sample',
     'get_sample_summary',
     'EXPERIMENTAL_BENCHMARK',
     'COVARIATE_COLS',

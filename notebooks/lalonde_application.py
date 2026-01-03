@@ -14,29 +14,17 @@
 # ---
 
 # %% [markdown]
-# # LaLonde Application: The κ* Diagnostic in Canonical Data
+# # LaLonde Empirical Application
 #
-# ---
+# This notebook implements the empirical illustration in **Section 6** of the paper.
+# We apply the $\hat{\kappa}_{\text{oof}}$ diagnostic to the LaLonde (1986) job training
+# dataset, comparing DML estimates across experimental (NSW) and observational (NSW-PSID)
+# samples.
 #
-# ## Research Goal
-#
-# This notebook applies the **κ* diagnostic** to the canonical LaLonde (1986) job training 
-# dataset. We demonstrate the practical use of κ* as a routine diagnostic for DML estimation.
-#
-# ## Theoretical Background
-#
-# From Theorem 3.2, the **exact decomposition**:
-#
-# $$\hat{\theta} - \theta_0 = \hat{\kappa} \cdot S_n' + \hat{\kappa} \cdot B_n'$$
-#
-# The standardized condition number $\kappa^* = 1/(1 - R^2(D|X))$ amplifies both:
-# - $S_n'$: standardized oracle sampling term (variance inflation)
-# - $B_n'$: standardized nuisance bias term (bias amplification)
-#
-# ---
+# **Outputs:** Figure 3 (forest plot) and Table 8 (baseline estimates by learner).
 
 # %% [markdown]
-# ## 1. Setup and Imports
+# ## 1. Setup
 
 # %%
 # Standard imports
@@ -95,12 +83,16 @@ RANDOM_STATE = 42
 
 print("Setup complete.")
 print("=" * 60)
-print("LALONDE APPLICATION: κ* Diagnostic in Canonical Data")
+print("=" * 60)
+print("LALONDE APPLICATION: κ Diagnostic in Canonical Data")
 print("=" * 60)
 print(f"Experimental Benchmark ATE: ${EXPERIMENTAL_BENCHMARK:,}")
 
 # %% [markdown]
-# ## 2. Load Data
+# ## 2. Data
+#
+# **Experimental sample:** NSW treated vs. NSW randomized control (N ≈ 445).
+# **Observational sample:** NSW treated vs. PSID comparison (N ≈ 2,675).
 
 # %%
 # Load experimental data (NSW treated vs NSW control)
@@ -120,7 +112,7 @@ print(f"  Naive ATE: ${summary_obs['naive_ate']:,.0f}")
 print("\n⚠️ Note: The observational naive ATE is negative due to selection bias!")
 
 # %% [markdown]
-# ## 3. Tune RF Hyperparameters
+# ## 3. RF Hyperparameter Tuning
 
 # %%
 print("\nTuning RF hyperparameters for LaLonde data...")
@@ -134,7 +126,7 @@ rf_params_obs = tune_rf_for_data(X_obs, d_obs, random_state=RANDOM_STATE)
 print(f"Done. Best: {rf_params_obs}")
 
 # %% [markdown]
-# ## 4. Run DML Across Learners
+# ## 4. DML Estimation
 
 # %%
 # Learners to evaluate
@@ -172,9 +164,8 @@ def run_dml_for_sample(y, d, X, sample_name, learners=LEARNERS, rf_params=None):
             'SE': result.se,
             'CI_Lower': result.ci_lower,
             'CI_Upper': result.ci_upper,
-            'Kappa_Star': result.kappa_star,
+            'Kappa': result.kappa,
             'N': len(y),
-            'N_eff': result.effective_sample_size,
         })
     
     return pd.DataFrame(results)
@@ -203,7 +194,10 @@ df_baseline.to_csv(baseline_path, index=False)
 print(f"\nBaseline results saved to: {baseline_path}")
 
 # %% [markdown]
-# ## 5. Conditioning Analysis
+# ## 5. Conditioning Diagnostic
+#
+# Reports $\hat{\kappa}_{\text{oof}}$ for each sample. Per **Theorem 3.11**, higher $\kappa$
+# implies greater sensitivity to nuisance estimation error.
 
 # %%
 print("\n" + "=" * 60)
@@ -211,14 +205,12 @@ print("CONDITIONING ANALYSIS")
 print("=" * 60)
 
 for sample_name, df_sample in [('Experimental', df_exp), ('Observational', df_obs)]:
-    mean_kappa = df_sample['Kappa_Star'].mean()
+    mean_kappa = df_sample['Kappa'].mean()
     n = df_sample['N'].iloc[0]
-    n_eff = df_sample['N_eff'].mean()
     
     print(f"\n{sample_name} Sample:")
-    print(f"  Mean κ* = {mean_kappa:.2f}")
+    print(f"  Mean κ = {mean_kappa:.2f}")
     print(f"  N = {n:,}")
-    print(f"  N_eff = N/κ* = {n_eff:.0f} ({n_eff/n*100:.1f}% of nominal)")
 
 # Estimate dispersion
 exp_range = df_exp['Estimate'].max() - df_exp['Estimate'].min()
@@ -229,11 +221,13 @@ print(f"  Observational: ${obs_range:,.0f}")
 print(f"  Ratio: {obs_range/exp_range:.1f}x more dispersion in observational sample")
 
 # %% [markdown]
-# ---
+# ## 6. Forest Plot (Figure 3)
 #
-# ## 6. Forest Plot: Experimental vs Observational
+# Compares DML estimates across learners. The experimental sample ($\hat{\kappa} \approx 1$)
+# shows tight clustering around the benchmark; the observational sample ($\hat{\kappa} > 2$)
+# exhibits greater learner disagreement, consistent with higher conditioning.
 #
-# **Academic-quality visualization** comparing DML estimates across learners and samples.
+# **→ Produces Figure 3 in the paper.**
 
 # %%
 # =============================================================================
@@ -273,8 +267,8 @@ for idx, row in df_plot.iterrows():
     ax.scatter(row['Estimate'], y, color=color, s=80, zorder=5, 
                edgecolors='black', linewidth=0.5, marker='o')
     
-    # κ* annotation (right side)
-    ax.annotate(f"κ*={row['Kappa_Star']:.2f}", 
+    # κ annotation (right side)
+    ax.annotate(f"κ={row['Kappa']:.2f}", 
                 xy=(row['CI_Upper'] + 200, y),
                 fontsize=8, color='gray', va='center')
 
@@ -309,9 +303,9 @@ ax.tick_params(axis='both', which='major', labelsize=10)
 # Simple square legend box (academic style)
 legend_elements = [
     Patch(facecolor=COLORS['Experimental'], edgecolor='black', linewidth=0.5,
-          label=f'Experimental (κ* ≈ {df_exp["Kappa_Star"].mean():.1f})'),
+          label=f'Experimental (κ ≈ {df_exp["Kappa"].mean():.1f})'),
     Patch(facecolor=COLORS['Observational'], edgecolor='black', linewidth=0.5,
-          label=f'Observational (κ* ≈ {df_obs["Kappa_Star"].mean():.1f})'),
+          label=f'Observational (κ ≈ {df_obs["Kappa"].mean():.1f})'),
     Line2D([0], [0], color=COLORS['benchmark'], linestyle='--', linewidth=1.5,
            label=f'Benchmark (${EXPERIMENTAL_BENCHMARK:,})'),
 ]
@@ -325,7 +319,11 @@ print(f"\n✓ Saved: {RESULTS_DIR / 'lalonde_forest_plot.pdf'}")
 plt.show()
 
 # %% [markdown]
-# ## 7. Summary Statistics
+# ## 7. Summary (Table 8)
+#
+# Reports DML estimates, standard errors, and $\hat{\kappa}_{\text{oof}}$ by sample and learner.
+#
+# **→ Produces Table 8 in the paper (Appendix).**
 
 # %%
 print("\n" + "=" * 80)
@@ -333,23 +331,19 @@ print("SUMMARY: LALONDE DIAGNOSTIC ANALYSIS")
 print("=" * 80)
 
 # Key metrics
-kappa_exp_mean = df_exp['Kappa_Star'].mean()
-kappa_obs_mean = df_obs['Kappa_Star'].mean()
+kappa_exp_mean = df_exp['Kappa'].mean()
+kappa_obs_mean = df_obs['Kappa'].mean()
 n_exp = df_exp['N'].iloc[0]
 n_obs = df_obs['N'].iloc[0]
-n_eff_exp = df_exp['N_eff'].mean()
-n_eff_obs = df_obs['N_eff'].mean()
 
 print(f"\n{'Metric':<25} {'Experimental':>15} {'Observational':>15}")
 print("-" * 55)
 print(f"{'N (sample size)':<25} {n_exp:>15,} {n_obs:>15,}")
-print(f"{'Mean κ*':<25} {kappa_exp_mean:>15.2f} {kappa_obs_mean:>15.2f}")
-print(f"{'Mean N_eff':<25} {n_eff_exp:>15,.0f} {n_eff_obs:>15,.0f}")
-print(f"{'N_eff / N':<25} {n_eff_exp/n_exp*100:>14.1f}% {n_eff_obs/n_obs*100:>14.1f}%")
+print(f"{'Mean κ':<25} {kappa_exp_mean:>15.2f} {kappa_obs_mean:>15.2f}")
 print(f"{'Estimate dispersion':<25} ${exp_range:>13,.0f} ${obs_range:>13,.0f}")
 
 print(f"\n\n→ Dispersion ratio (Obs/Exp): {obs_range/exp_range:.1f}x")
-print(f"→ Higher κ* in observational sample corresponds to greater learner disagreement")
+print(f"→ Higher κ in observational sample corresponds to greater learner disagreement")
 
 # %%
 # Save final results
