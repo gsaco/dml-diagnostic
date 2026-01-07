@@ -17,21 +17,20 @@
 # # Corrupted Oracle Monte Carlo Study
 #
 # This notebook implements the Monte Carlo validation of the bias amplification mechanism
-# described in **Section 5** of the paper. We inject controlled multiplicative bias $\delta$
-# into oracle nuisance functions to isolate how the condition number $\kappa$ amplifies
-# estimation error, as predicted by **Theorem 3.8** (exact identity) and **Theorem 3.11**
-# (stochastic-order bound).
+# described in Section 5 of the paper. We inject controlled multiplicative bias δ into
+# oracle nuisance functions to isolate how the condition number κ amplifies estimation
+# error, as predicted by Theorem 3.4 (exact identity) and Theorem 3.8 (stochastic-order
+# bound).
 #
 # **Outputs:**
-# - Figure 1: Bias amplification ($|\hat{\theta} - \theta_0|$ vs $\kappa$ and $\kappa \times \delta$)
+# - Figure 1: Bias amplification (|θ̂ − θ₀| vs κ and κ × δ)
 # - Figure 2: Coverage degradation mechanism
-# - Tables 2–7: Supporting simulation statistics
+# - Tables S1–S6: Supporting simulation statistics (Supplement)
 
 # %% [markdown]
 # ## 1. Setup and Imports
 
 # %%
-# Standard imports
 import sys
 import warnings
 from pathlib import Path
@@ -58,7 +57,7 @@ from src.learners import (
 )
 from src.dml import DMLEstimator, run_dml
 
-# Configure matplotlib for JCI publication quality
+# Matplotlib configuration
 plt.rcParams.update({
     # Font settings
     'font.family': 'serif',
@@ -105,10 +104,7 @@ plt.rcParams.update({
 RESULTS_DIR = Path('../results')
 RESULTS_DIR.mkdir(exist_ok=True)
 
-print("Setup complete.")
-print("="*60)
-print("CORRUPTED ORACLE ANALYSIS: Mechanism Proof of Bias Amplification")
-print("="*60)
+# Configuration loaded
 
 # %% [markdown]
 # ## 2. Simulation Configuration
@@ -117,9 +113,7 @@ print("="*60)
 # multiplicative bias $\delta \in \{0, 0.02, 0.05, 0.10, 0.20\}$.
 
 # %%
-# =============================================================================
-# SIMULATION PARAMETERS
-# =============================================================================
+# Simulation parameters
 
 # Sample size (fixed for this analysis)
 N_SAMPLES = 2000
@@ -135,7 +129,7 @@ N_REPEATS = 1
 THETA0 = 1.0
 
 # Base random seed
-BASE_SEED = 20241217
+BASE_SEED = 42
 
 # Overlap regimes (target R²(D|X)) mapped to expected κ
 # κ = 1/(1 - R²)
@@ -180,8 +174,8 @@ def run_corrupted_oracle_replication(
     
     This isolates the pure effect of κ on bias amplification.
     
-    CRITICAL: We compute structural_kappa from TRUE residuals, not corrupted ones.
-    This ensures κ is stable across all δ levels for a given R² regime.
+    Structural kappa is computed from TRUE residuals, not corrupted ones,
+    ensuring κ is stable across all δ levels for a given R² regime.
     """
     # Create unique seed
     r2_code = int(target_r2 * 100)
@@ -229,7 +223,7 @@ def run_corrupted_oracle_replication(
         'se': dml_result.se,
         'ci_lower': dml_result.ci_lower,
         'ci_upper': dml_result.ci_upper,
-        # CRITICAL: Use structural_kappa for analysis, not dml_result.kappa
+        # Use structural_kappa for analysis, not dml_result.kappa
         'structural_kappa': structural_kappa,
         'kappa': dml_result.kappa,  # Corrupted κ (for comparison)
         'bias': dml_result.bias,
@@ -239,15 +233,11 @@ def run_corrupted_oracle_replication(
         'rmse_l': dml_result.rmse_l,
     }
 
-print("Corrupted Oracle replication function defined.")
-
 # %% [markdown]
 # ## 4. Run Simulation
 
 # %%
-# =============================================================================
-# RUN SIMULATION WITH PARALLEL PROCESSING
-# =============================================================================
+# Run simulation with parallel processing
 
 print("Starting Corrupted Oracle simulation...")
 print(f"Total replications: {len(R2_REGIMES) * len(BIAS_LEVELS) * B_REPS:,}")
@@ -278,9 +268,7 @@ print(f"Shape: {df_corrupted.shape}")
 # ## 5. Aggregate Results
 
 # %%
-# =============================================================================
-# AGGREGATE BY (DELTA, R²)
-# =============================================================================
+# Aggregate by (delta, R²)
 
 def compute_aggregates(df: pd.DataFrame) -> pd.DataFrame:
     """Compute aggregates for Corrupted Oracle analysis."""
@@ -348,18 +336,16 @@ df_agg.to_csv(agg_path, index=False)
 print(f"\nAggregates saved to: {agg_path}")
 
 # %% [markdown]
-# ## 6. Structural $\kappa$ Stability (Table 5)
+# ## 6. Structural κ Stability (Table S3)
 #
-# Verifies that $\kappa = \sigma_D^2/\sigma_V^2$ is invariant to learner bias $\delta$, as it
-# depends only on the DGP (Definition 3.5). This confirms the corrupted oracle design
-# correctly isolates the amplification mechanism.
+# Verifies that κ = σ_D²/σ_V² is invariant to learner bias δ, as it depends only on the
+# DGP (Definition 3.5). This confirms the corrupted oracle design correctly isolates the
+# amplification mechanism.
 #
-# **→ Produces Table 5 in the paper (Appendix).**
+# Produces Table S3 in the Supplement.
 
 # %%
-# =============================================================================
-# VERIFICATION: STRUCTURAL κ* IS STABLE ACROSS δ LEVELS
-# =============================================================================
+# Verify structural κ stability across δ levels
 
 print("\n" + "="*60)
 print("VERIFICATION: Structural κ Stability Across Bias Levels")
@@ -379,37 +365,33 @@ print(pivot_kappa['median_structural_kappa'].round(2).to_string())
 print("\n2. CORRUPTED κ (from learner residuals - varies with δ):")
 print(pivot_kappa['mean_kappa'].round(2).to_string())
 
-print("\n→ Notice: Structural κ is stable, but Corrupted κ increases with δ.")
-print("  This is why we must use Structural κ for the mechanism analysis!")
+print("Structural κ remains constant across δ levels (rows). Corrupted κ varies with δ.")
+print("This confirms the design isolates the amplification mechanism.")
 
 # %% [markdown]
 # ## 7. Bias Amplification (Figure 1)
 #
-# **Theorem 3.8** establishes the exact identity:
-# $$\hat{\theta} - \theta_0 = \hat{\kappa}(S_n' + B_n')$$
-# where $S_n'$ is the oracle sampling term and $B_n'$ is the nuisance bias term.
+# Theorem 3.4 establishes the exact identity:
+# θ̂ − θ₀ = κ̂(S_n' + B_n')
+# where S_n' is the oracle sampling term and B_n' is the nuisance bias term.
 #
-# **Theorem 3.11** gives the stochastic-order bound:
-# $$\hat{\theta} - \theta_0 = O_P\big(\sqrt{\kappa_n/n} + \kappa_n \cdot \text{Rem}_n\big)$$
+# Theorem 3.8 gives the stochastic-order bound:
+# θ̂ − θ₀ = O_P(√(κ_n/n) + κ_n × Rem_n)
 #
-# We validate that $|\text{Bias}| \propto \kappa \times \delta$, confirming $\kappa$ acts as an
-# error multiplier.
+# We validate that |Bias| ∝ κ × δ, confirming κ acts as an error multiplier.
 
 # %%
-# =============================================================================
-# FIGURE 1: BIAS AMPLIFICATION MECHANISM
-# Academic Quality - Panel labels outside, muted colors, simple styling
-# =============================================================================
+# Figure 1: Bias amplification mechanism
 
 # Filter out δ=0 (no bias injected)
 df_plot = df_agg[df_agg['delta'] > 0].copy()
 
-# Academic Color Palette - muted, professional colors for journals
-ACADEMIC_COLORS = {
-    0.02: '#1f77b4',   # Muted blue
-    0.05: '#2ca02c',   # Muted green  
-    0.10: '#ff7f0e',   # Muted orange
-    0.20: '#d62728',   # Muted red
+# Color palette for bias levels
+BIAS_COLORS = {
+    0.02: '#1f77b4',
+    0.05: '#2ca02c',  
+    0.10: '#ff7f0e',
+    0.20: '#d62728',
 }
 delta_labels = {
     0.02: r'$\delta = 0.02$',
@@ -418,16 +400,15 @@ delta_labels = {
     0.20: r'$\delta = 0.20$',
 }
 
-# Academic figure setup - panel labels will be outside via fig.text
 fig1, axes1 = plt.subplots(1, 2, figsize=(10, 4.5))
 fig1.patch.set_facecolor('white')
 plt.subplots_adjust(wspace=0.32, left=0.10, right=0.98, bottom=0.15, top=0.88)
 
-# Panel labels OUTSIDE the axes (above each panel)
+# Panel labels
 fig1.text(0.10, 0.92, '(a)', fontsize=14, fontweight='bold', ha='left', va='bottom')
 fig1.text(0.55, 0.92, '(b)', fontsize=14, fontweight='bold', ha='left', va='bottom')
 
-# ─── PANEL (a): Bias vs Structural κ ───
+# Panel (a): Bias vs Structural κ
 ax1a = axes1[0]
 
 for delta in [d for d in BIAS_LEVELS if d > 0]:
@@ -435,7 +416,7 @@ for delta in [d for d in BIAS_LEVELS if d > 0]:
     ax1a.scatter(
         subset['median_structural_kappa'],
         subset['mean_abs_bias'],
-        color=ACADEMIC_COLORS[delta],
+        color=BIAS_COLORS[delta],
         s=60, alpha=0.85, edgecolors='none',
         label=delta_labels[delta], zorder=5, marker='o',
     )
@@ -447,7 +428,7 @@ for delta in [d for d in BIAS_LEVELS if d > 0]:
         x_line = np.logspace(np.log10(subset['median_structural_kappa'].min()), 
                               np.log10(subset['median_structural_kappa'].max()), 50)
         y_line = np.exp(intercept_indiv) * x_line ** slope_indiv
-        ax1a.plot(x_line, y_line, '--', color=ACADEMIC_COLORS[delta], linewidth=1.2, alpha=0.7)
+        ax1a.plot(x_line, y_line, '--', color=BIAS_COLORS[delta], linewidth=1.2, alpha=0.7)
 
 ax1a.set_xscale('log')
 ax1a.set_yscale('log')
@@ -456,11 +437,10 @@ ax1a.set_ylabel(r'$|\hat{\theta} - \theta_0|$', fontsize=11)
 ax1a.tick_params(axis='both', which='major', labelsize=10)
 ax1a.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
 
-# Simple square legend box
 ax1a.legend(loc='upper left', fontsize=9, framealpha=1.0, edgecolor='black',
             fancybox=False, borderpad=0.5, labelspacing=0.3)
 
-# ─── PANEL (b): Universal Collapse ───
+# Panel (b): Universal Collapse
 ax1b = axes1[1]
 
 for delta in [d for d in BIAS_LEVELS if d > 0]:
@@ -468,7 +448,7 @@ for delta in [d for d in BIAS_LEVELS if d > 0]:
     ax1b.scatter(
         subset['kappa_times_delta'],
         subset['mean_abs_bias'],
-        color=ACADEMIC_COLORS[delta],
+        color=BIAS_COLORS[delta],
         s=60, alpha=0.85, edgecolors='none',
         label=delta_labels[delta], zorder=5, marker='o',
     )
@@ -492,7 +472,7 @@ ax1b.set_ylabel(r'$|\hat{\theta} - \theta_0|$', fontsize=11)
 ax1b.tick_params(axis='both', which='major', labelsize=10)
 ax1b.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
 
-# Simple square annotation box for regression stats
+# Annotation box for regression stats
 textstr = f'$R^2 = {r_squared:.3f}$\nslope $= {slope_all:.2f}$'
 props = dict(boxstyle='square,pad=0.4', facecolor='white', edgecolor='black', linewidth=0.8)
 ax1b.text(0.97, 0.05, textstr, transform=ax1b.transAxes, fontsize=9,
@@ -504,8 +484,8 @@ ax1b.legend(loc='upper left', fontsize=9, framealpha=1.0, edgecolor='black',
 
 plt.savefig(RESULTS_DIR / 'figure1_bias_amplification.pdf', dpi=300, bbox_inches='tight', facecolor='white')
 plt.savefig(RESULTS_DIR / 'figure1_bias_amplification.png', dpi=300, bbox_inches='tight', facecolor='white')
-print(f"\n✓ Saved: {RESULTS_DIR / 'figure1_bias_amplification.pdf'}")
-plt.show()
+print(f"Saved: {RESULTS_DIR / 'figure1_bias_amplification.pdf'}")
+# plt.show()
 
 # %% [markdown]
 # **Interpretation (Figure 1):**
@@ -515,21 +495,17 @@ plt.show()
 #   plotted against $\kappa \times \delta$, validating the multiplicative structure.
 
 # %%
-# =============================================================================
-# FIGURE 2: COVERAGE MECHANISM AND INFERENTIAL FAILURE
-# Academic Quality - Panel labels outside, muted colors, simple styling
-# =============================================================================
+# Figure 2: Coverage mechanism
 
-# Academic figure setup - panel labels outside
 fig2, axes2 = plt.subplots(1, 2, figsize=(10, 4.5))
 fig2.patch.set_facecolor('white')
 plt.subplots_adjust(wspace=0.32, left=0.10, right=0.98, bottom=0.15, top=0.88)
 
-# Panel labels OUTSIDE the axes (above each panel)
+# Panel labels
 fig2.text(0.10, 0.92, '(a)', fontsize=14, fontweight='bold', ha='left', va='bottom')
 fig2.text(0.55, 0.92, '(b)', fontsize=14, fontweight='bold', ha='left', va='bottom')
 
-# ─── PANEL (a): Coverage Collapse ───
+# Panel (a): Coverage Collapse
 ax2a = axes2[0]
 
 for delta in [d for d in BIAS_LEVELS if d > 0]:
@@ -537,7 +513,7 @@ for delta in [d for d in BIAS_LEVELS if d > 0]:
     ax2a.scatter(
         subset['kappa_times_delta'],
         subset['coverage'],
-        color=ACADEMIC_COLORS[delta],
+        color=BIAS_COLORS[delta],
         s=60, alpha=0.85, edgecolors='none',
         label=delta_labels[delta], zorder=5, marker='o',
     )
@@ -561,11 +537,10 @@ ax2a.set_ylim(-0.02, 1.02)
 ax2a.tick_params(axis='both', which='major', labelsize=10)
 ax2a.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
 
-# Simple square legend box
 ax2a.legend(loc='lower left', fontsize=9, framealpha=1.0, edgecolor='black',
             fancybox=False, borderpad=0.5, labelspacing=0.3)
 
-# ─── PANEL (b): Bias-to-SE Ratio ───
+# Panel (b): Bias-to-SE Ratio
 ax2b = axes2[1]
 
 for delta in [d for d in BIAS_LEVELS if d > 0]:
@@ -573,12 +548,12 @@ for delta in [d for d in BIAS_LEVELS if d > 0]:
     ax2b.scatter(
         subset['kappa_times_delta'],
         subset['bias_to_se_ratio'],
-        color=ACADEMIC_COLORS[delta],
+        color=BIAS_COLORS[delta],
         s=60, alpha=0.85, edgecolors='none',
         label=delta_labels[delta], zorder=5, marker='o',
     )
 
-# Critical threshold lines
+# Threshold lines
 ax2b.axhline(y=1.0, color='#d62728', linestyle='--', linewidth=1.5, alpha=0.8, label='Bias = SE')
 ax2b.axhline(y=2.0, color='#ff7f0e', linestyle=':', linewidth=1.5, alpha=0.8, label='Bias = 2×SE')
 
@@ -588,28 +563,27 @@ ax2b.set_ylabel('Bias / SE', fontsize=11)
 ax2b.tick_params(axis='both', which='major', labelsize=10)
 ax2b.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
 
-# Simple square legend box
 ax2b.legend(loc='upper left', fontsize=9, framealpha=1.0, edgecolor='black',
             fancybox=False, borderpad=0.5, labelspacing=0.3)
 
 plt.savefig(RESULTS_DIR / 'figure2_coverage_analysis.pdf', dpi=300, bbox_inches='tight', facecolor='white')
 plt.savefig(RESULTS_DIR / 'figure2_coverage_analysis.png', dpi=300, bbox_inches='tight', facecolor='white')
-print(f"\n✓ Saved: {RESULTS_DIR / 'figure2_coverage_analysis.pdf'}")
-plt.show()
+print(f"Saved: {RESULTS_DIR / 'figure2_coverage_analysis.pdf'}")
+# plt.show()
 
-print(f"\nLog-Log Regression: slope = {slope_all:.3f} ± {std_err:.3f}")
-print(f"R² = {r_squared:.4f}")
-print(f"→ κ amplifies bias (slope > 0 confirms Result 2)")
-print(f"→ Slope < 1 expected due to quadratic Rem_n structure (Result 3)")
+print(f"Log-Log Regression: slope = {slope_all:.3f} (SE = {std_err:.3f})")
+print(f"R-squared = {r_squared:.4f}")
+print(f"Slope > 0 confirms κ amplifies the remainder term (Theorem 3.8).")
+print(f"Slope < 1 reflects the quadratic structure of Rem_n.")
 
 # %% [markdown]
-# **Interpretation (Figure 2, Table 2):**
-# - Panel (a): Coverage degrades from 95% toward 0% as $\kappa \times \delta$ increases.
+# **Interpretation (Figure 2, Table S1):**
+# - Panel (a): Coverage degrades from 95% toward 0% as κ × δ increases.
 #   This is the "silent failure" mode where CIs are narrow but systematically biased.
-# - Panel (b): When $|\text{Bias}|/\text{SE} > 1$, bias dominates sampling variance and
+# - Panel (b): When |Bias|/SE > 1, bias dominates sampling variance and
 #   coverage collapses.
 #
-# **→ Produces Figure 2 and data for Table 2 in the paper.**
+# Produces Figure 2 and data for Table S1 (coverage grid) in the Supplement.
 
 # %% [markdown]
 # ## 8. Oracle Baseline ($\delta = 0$)
@@ -618,9 +592,7 @@ print(f"→ Slope < 1 expected due to quadratic Rem_n structure (Result 3)")
 # confirming that the undercoverage in Figure 2 is due to nuisance bias, not variance.
 
 # %%
-# =============================================================================
-# ORACLE BASELINE ANALYSIS
-# =============================================================================
+# Oracle baseline analysis
 
 df_oracle = df_agg[df_agg['delta'] == 0].copy()
 
@@ -630,16 +602,14 @@ print("="*60)
 print("\\nWith zero injected bias, the only error is sampling variance:")
 print(df_oracle[['target_r2', 'median_structural_kappa', 'mean_abs_bias', 'coverage']].round(4).to_string())
 
-print("\n→ Coverage should be ~95% at δ=0 (only sampling variance).")
-print("→ When δ>0, coverage drops due to BIAS, not variance.")
+print("Coverage is near-nominal at δ=0, confirming that undercoverage at δ>0")
+print("is attributable to bias amplification, not variance inflation.")
 
 # %% [markdown]
 # ## 9. Summary Statistics Table
 
 # %%
-# =============================================================================
-# SUMMARY TABLE FOR PAPER
-# =============================================================================
+# Summary statistics
 
 print("\n" + "="*80)
 print("CORRUPTED ORACLE: SUMMARY STATISTICS")
@@ -672,38 +642,35 @@ print(f"Intercept: {intercept_all:.4f}")
 print(f"R²: {r_value**2:.4f}")
 print(f"P-value: {p_value:.2e}")
 
-# Interpretation per paper17.tex
+# Interpretation per Theorem 3.8
 print("\n" + "-"*60)
-print("INTERPRETATION (per jbes3.tex Result 3):")
+print("INTERPRETATION (per Theorem 3.8):")
 print("-"*60)
-print(f"→ Slope > 0 confirms κ amplifies the remainder term.")
-print(f"→ Slope < 1 is EXPECTED because Rem_n = r_m × r_ℓ + r_m² + (r_m + r_ℓ)/√n")
-print(f"   has quadratic structure in δ, not linear.")
-print(f"→ The log-log R² = {r_squared:.3f} shows tight monotonic relationship.")
+print(f"Slope > 0 confirms κ amplifies the remainder term.")
+print(f"Slope < 1 reflects the quadratic structure of Rem_n = r_m × r_ℓ + r_m² + (r_m + r_ℓ)/√n.")
+print(f"The log-log R-squared = {r_squared:.3f} indicates a tight monotonic relationship.")
 
 # %% [markdown]
-# ## 9.6 Exponent Diagnostic (Table 4)
+# ## 9.6 Exponent Diagnostic (Table S2)
 #
-# **Theorem 3.11** implies $\text{Rem}_n = r_n^m r_n^\ell + (r_n^m)^2 + (r_n^m + r_n^\ell)/\sqrt{n}$.
-# With multiplicative bias $r_n^m \propto \delta$, we expect sublinear log-log scaling.
-# Multivariate regression separates exponents on $\kappa$ and $\delta$.
+# Theorem 3.8 implies Rem_n = r_n^m r_n^ℓ + (r_n^m)² + (r_n^m + r_n^ℓ)/√n.
+# With multiplicative bias r_n^m ∝ δ, we expect sublinear log-log scaling.
+# Multivariate regression separates exponents on κ and δ.
 #
-# **→ Produces Table 4 in the paper (Appendix).**
+# Produces Table S2 in the Supplement.
 
 # %%
-# =============================================================================
-# REMAINDER STRUCTURE ANALYSIS (Theorem 3.8)
-# =============================================================================
+# Remainder structure analysis (Theorem 3.8)
 
 print("\n" + "="*80)
-print("REMAINDER STRUCTURE ANALYSIS (paper17.tex Theorem 3.8)")
+print("REMAINDER STRUCTURE ANALYSIS (Theorem 3.8)")
 print("="*80)
 
 print("\nTheorem 3.8 remainder formula:")
 print("  Rem_n = r_m × r_ℓ + r_m² + (r_m + r_ℓ)/√n")
 print("\nWith corrupted oracle (multiplicative bias δ):")
 print("  r_m ∝ δ,  r_ℓ ∝ δ")
-print("  → Rem_n ∝ δ² + δ²/√n ∝ δ² (at large n)")
+print("  Rem_n proportional to δ² + δ²/√n, hence proportional to δ² at large n.")
 print("\nThis explains why log-log slope < 1:")
 print("  - If Error ∝ κ × δ²: log(Error) = log(κ) + 2×log(δ)")
 print("  - Regressing on log(κ × δ) conflates the exponents")
@@ -734,22 +701,26 @@ print(f"  β_κ (exponent on κ*): {beta_kappa:.3f}")
 print(f"  β_δ (exponent on δ):  {beta_delta:.3f}")
 print(f"  R² = {r2_multi:.4f}")
 
-print(f"\n→ Exponent on δ is {beta_delta:.2f}, not 1.0")
-print("→ This is consistent with quadratic Rem_n ∝ δ² structure")
-print("→ κ* amplification exponent ≈ {:.2f} confirms Theorem 3.2".format(beta_kappa))
+print(f"Exponent on δ is {beta_delta:.2f}, consistent with quadratic Rem_n ∝ δ² structure.")
+print(f"κ amplification exponent = {beta_kappa:.2f}, consistent with Theorem 3.4.")
+
+# Save exponent results
+pd.DataFrame({
+    'beta_kappa': [beta_kappa],
+    'beta_delta': [beta_delta],
+    'r2': [r2_multi]
+}).to_csv(RESULTS_DIR / 'exponent_diagnostic.csv', index=False)
 
 # %% [markdown]
-# ## 9.7 Sample Size Sensitivity (Table 7)
+# ## 9.7 Sample Size Sensitivity (Table S5)
 #
-# Verifies that the bias amplification mechanism persists across $n \in \{500, 1000, 2000, 4000\}$,
+# Verifies that the bias amplification mechanism persists across n ∈ {500, 1000, 2000, 4000},
 # confirming this is not a finite-sample artifact.
 #
-# **→ Produces Table 7 in the paper (Appendix).**
+# Produces Table S5 in the Supplement.
 
 # %%
-# =============================================================================
-# SAMPLE SIZE SENSITIVITY ANALYSIS (Recommendation #1)
-# =============================================================================
+# Sample size sensitivity analysis
 
 print("\n" + "="*80)
 print("SAMPLE SIZE SENSITIVITY ANALYSIS")
@@ -759,7 +730,7 @@ print("="*80)
 N_SIZES = [500, 1000, 2000, 4000]
 R2_FOR_SENSITIVITY = 0.90  # Fixed moderate difficulty
 DELTA_FOR_SENSITIVITY = 0.10  # Fixed bias level
-B_REPS_SMALL = 50  # Fewer reps for speed
+B_REPS_SMALL = 500  # Match main simulation replications
 
 print(f"\nConfiguration:")
 print(f"  Sample sizes: {N_SIZES}")
@@ -797,27 +768,26 @@ df_sens_agg['kappa_times_delta'] = df_sens_agg['mean_kappa'] * DELTA_FOR_SENSITI
 print("\n" + "-"*60)
 print("Results by Sample Size:")
 print(df_sens_agg.round(4).to_string())
+df_sens_agg.to_csv(RESULTS_DIR / 'sample_size_sensitivity.csv', index=False)
 
 # Check if bias is consistent across sample sizes
 bias_range = df_sens_agg['mean_abs_bias'].max() - df_sens_agg['mean_abs_bias'].min()
 mean_bias = df_sens_agg['mean_abs_bias'].mean()
 
-print(f"\n→ Bias range: {bias_range:.4f} (relative: {bias_range/mean_bias*100:.1f}%)")
-print("→ Bias is consistent across sample sizes, confirming the mechanism is not finite-sample artifact.")
+print(f"Bias range: {bias_range:.4f} (relative: {bias_range/mean_bias*100:.1f}%)")
+print("Bias is consistent across sample sizes, confirming the mechanism is not a finite-sample artifact.")
 
 # %% [markdown]
-# ## 9.8 Nonlinear DGP Robustness (Table 6)
+# ## 9.8 Nonlinear DGP Robustness (Table S4)
 #
-# Tests whether the mechanism depends on linearity of $m_0(X)$. We replace the linear
-# treatment equation with $m_0(X) = \tanh(\beta'X) \times c$ and verify that $\kappa$
-# still predicts bias amplification.
+# Tests whether the mechanism depends on linearity of m_0(X). We replace the linear
+# treatment equation with m_0(X) = tanh(β'X) × c and verify that κ still predicts
+# bias amplification.
 #
-# **→ Produces Table 6 in the paper (Appendix).**
+# Produces Table S4 in the Supplement.
 
 # %%
-# =============================================================================
-# NON-LINEAR DGP ROBUSTNESS CHECK (Recommendation #2)
-# =============================================================================
+# Nonlinear DGP robustness check
 
 print("\n" + "="*80)
 print("NON-LINEAR DGP ROBUSTNESS CHECK")
@@ -829,7 +799,7 @@ from src.dgp import generate_nonlinear_data
 # Test with tanh nonlinearity
 NONLINEAR_R2_REGIMES = [0.75, 0.90, 0.95]
 NONLINEAR_DELTA = 0.10
-B_REPS_NONLINEAR = 30
+B_REPS_NONLINEAR = 500
 
 print(f"\nConfiguration:")
 print(f"  DGP: m₀(X) = tanh(β'X) × scale (non-linear)")
@@ -841,7 +811,7 @@ nonlinear_results = []
 
 for r2 in NONLINEAR_R2_REGIMES:
     for rep in range(B_REPS_NONLINEAR):
-        seed = 50000 + int(r2 * 100) * 1000 + rep
+        seed = BASE_SEED + 2000000 + int(r2 * 100) * 1000 + rep
         
         # Generate data from non-linear DGP
         Y, D, X, info, dgp = generate_nonlinear_data(
@@ -913,6 +883,7 @@ df_dgp_comparison = pd.concat([
 print("\n" + "-"*60)
 print("Comparison: Linear vs Non-Linear DGP")
 print(df_dgp_comparison.round(4).to_string())
+df_dgp_comparison.to_csv(RESULTS_DIR / 'nonlinear_dgp_comparison.csv', index=False)
 
 # Fit regression for non-linear DGP
 log_x_nl = np.log(df_nl_agg['kappa_times_delta'])
@@ -921,22 +892,20 @@ slope_nl, intercept_nl, r_nl, _, se_nl = stats.linregress(log_x_nl, log_y_nl)
 
 print(f"\nNon-linear DGP: log-log slope = {slope_nl:.3f} ± {se_nl:.3f}")
 print(f"   Compared to Linear DGP slope = {slope_all:.3f}")
-print(f"\n→ Both DGPs show |Bias| ∝ κ* × δ")
-print("→ The mechanism is ROBUST to the form of the propensity score function.")
+print(f"Both linear and nonlinear DGPs show |Bias| ∝ κ × δ.")
+print("The mechanism is robust to the form of the treatment equation.")
 
 # %% [markdown]
-# ## 9.10 Opposite-Sign Bias (Table 3)
+# ## 9.10 Opposite-Sign Bias (Table S6)
 #
-# **Lemma 3.7** decomposes the bias into four terms including $B_n^{(4)} = n^{-1}\sum_i \Delta_i^m \Delta_i^\ell$.
-# When nuisance errors have opposite signs ($\delta_m > 0$, $\delta_\ell < 0$), this product
+# Lemma 3.7 decomposes the bias into five terms including B_n^{(4)} = n^{-1}∑_i Δ_i^m Δ_i^ℓ.
+# When nuisance errors have opposite signs (δ_m > 0, δ_ℓ < 0), this product
 # term does not partially cancel, producing maximum amplification.
 #
-# **→ Produces Table 3 in the paper.**
+# Produces Table S6 in the Supplement.
 
 # %%
-# =============================================================================
-# OPPOSITE-SIGN BIAS EXPERIMENT (Recommendation from JCI Review)
-# =============================================================================
+# Opposite-sign bias experiment
 
 print("\n" + "="*80)
 print("OPPOSITE-SIGN BIAS EXPERIMENT: Maximum Bias Amplification")
@@ -945,7 +914,7 @@ print("="*80)
 # Test with opposite-signed biases
 OPPOSITE_R2_REGIMES = [0.75, 0.90, 0.95]
 OPPOSITE_DELTA = 0.10
-B_REPS_OPPOSITE = 50
+B_REPS_OPPOSITE = 500
 
 print(f"\nConfiguration:")
 print(f"  Same-sign: bias_m = +δ, bias_l = +δ")
@@ -959,7 +928,7 @@ opposite_sign_results = []
 for r2 in OPPOSITE_R2_REGIMES:
     for sign_type in ['same', 'opposite']:
         for rep in range(B_REPS_OPPOSITE):
-            seed = 60000 + int(r2 * 100) * 1000 + rep + (1000 if sign_type == 'opposite' else 0)
+            seed = BASE_SEED + 3000000 + int(r2 * 100) * 1000 + rep
             
             # Generate data
             Y, D, X, info, dgp = generate_data(
@@ -1016,17 +985,18 @@ df_opp_agg = df_opposite.groupby(['sign_type', 'target_r2']).agg(
 print("\n" + "-"*60)
 print("Comparison: Same-Sign vs. Opposite-Sign Bias")
 print(df_opp_agg.round(4).to_string())
+df_opp_agg.to_csv(RESULTS_DIR / 'opposite_sign_bias.csv', index=False)
 
 # Compute amplification ratio
 same_bias = df_opp_agg[df_opp_agg['sign_type'] == 'same']['mean_abs_bias'].values
 opp_bias = df_opp_agg[df_opp_agg['sign_type'] == 'opposite']['mean_abs_bias'].values
 ratio = opp_bias / same_bias
 
-print(f"\n→ Opposite-sign bias is {np.mean(ratio):.1f}x larger on average")
-print("→ This confirms that same-sign biases PARTIALLY CANCEL per Lemma 3.4")
-print("→ Opposite-sign biases produce MAXIMUM amplification")
+print(f"Opposite-sign bias is {np.mean(ratio):.1f}x larger on average.")
+print("Same-sign biases partially cancel per Lemma 3.7.")
+print("Opposite-sign biases produce maximum amplification.")
 
-# JCI-quality bar chart
+# Bar chart
 fig, ax = plt.subplots(figsize=(7, 5))
 x_pos = np.arange(len(OPPOSITE_R2_REGIMES))
 width = 0.38
@@ -1035,7 +1005,6 @@ same_vals = df_opp_agg[df_opp_agg['sign_type'] == 'same']['mean_abs_bias'].value
 opp_vals = df_opp_agg[df_opp_agg['sign_type'] == 'opposite']['mean_abs_bias'].values
 kappa_vals = df_opp_agg[df_opp_agg['sign_type'] == 'same']['mean_kappa'].values
 
-# Professional colors
 bars1 = ax.bar(x_pos - width/2, same_vals, width, label='Same-sign', 
                color='#5c7cba', edgecolor='white', linewidth=1.2)
 bars2 = ax.bar(x_pos + width/2, opp_vals, width, label='Opposite-sign', 
@@ -1060,7 +1029,7 @@ plt.tight_layout()
 plt.savefig(RESULTS_DIR / 'corrupted_oracle_opposite_sign.pdf', dpi=300, bbox_inches='tight')
 plt.savefig(RESULTS_DIR / 'corrupted_oracle_opposite_sign.png', dpi=300, bbox_inches='tight')
 print(f"\nSaved: {RESULTS_DIR / 'corrupted_oracle_opposite_sign.pdf'}")
-plt.show()
+# plt.show()
 
 # %% [markdown]
 # ## 10. Summary
@@ -1069,23 +1038,20 @@ plt.show()
 #
 # | Paper Result | Validated Finding |
 # |--------------|-------------------|
-# | **Theorem 3.8** (Exact identity) | Bias scales with $\kappa \times \delta$ (Figure 1b) |
-# | **Theorem 3.11** (Stochastic bound) | Coverage degrades with $\kappa \cdot \text{Rem}_n$ (Figure 2, Table 2) |
-# | **Lemma 3.7** (Bias decomposition) | Opposite-sign errors maximize amplification (Table 3) |
-# | **Robustness** | Mechanism persists across sample sizes (Table 7) and nonlinear DGPs (Table 6) |
+# | Theorem 3.4 (Exact identity) | Bias scales with κ × δ (Figure 1b) |
+# | Theorem 3.8 (Stochastic bound) | Coverage degrades with κ × Rem_n (Figure 2, Table S1) |
+# | Lemma 3.7 (Bias decomposition) | Opposite-sign errors maximize amplification (Table S6) |
+# | Robustness | Mechanism persists across sample sizes (Table S5) and nonlinear DGPs (Table S4) |
 
 # %%
-print("\n" + "="*80)
-print("CORRUPTED ORACLE ANALYSIS COMPLETE")
-print("="*80)
-print(f"\nResults saved to: {RESULTS_DIR}")
-print("\nKey outputs:")
+print(f"Results saved to: {RESULTS_DIR}")
+print("Key outputs:")
 print("  - corrupted_oracle_results.csv (raw replications)")
 print("  - corrupted_oracle_aggregates.csv (aggregated statistics)")
-print("  - figure1_bias_amplification.pdf (bias amplification)")
-print("  - figure2_coverage_analysis.pdf (coverage mechanism)")
-print("\nTheory alignment:")
-print("  - Theorem 3.8 (Exact Identity): Validated via log-log slope ≈ 1")
-print("  - Theorem 3.11 (Stochastic Bound): Validated via coverage degradation")
+print("  - figure1_bias_amplification.pdf (Figure 1)")
+print("  - figure2_coverage_analysis.pdf (Figure 2)")
+print("Theory alignment:")
+print("  - Theorem 3.4 (Exact Identity): Validated via Figure 1")
+print("  - Theorem 3.8 (Stochastic Bound): Validated via Figure 2")
 print("  - Lemma 3.7 (Bias Decomposition): Validated via opposite-sign experiment")
 

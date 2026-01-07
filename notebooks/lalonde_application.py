@@ -16,12 +16,12 @@
 # %% [markdown]
 # # LaLonde Empirical Application
 #
-# This notebook implements the empirical illustration in **Section 6** of the paper.
-# We apply the $\hat{\kappa}_{\text{oof}}$ diagnostic to the LaLonde (1986) job training
-# dataset, comparing DML estimates across experimental (NSW) and observational (NSW-PSID)
+# This notebook implements the empirical illustration in Section 6 of the paper.
+# We apply the κ̂_oof diagnostic to the LaLonde (1986) job training dataset,
+# comparing DML estimates across experimental (NSW) and observational (NSW-PSID)
 # samples.
 #
-# **Outputs:** Figure 3 (forest plot) and Table 8 (baseline estimates by learner).
+# **Outputs:** Figure 3 (forest plot) and Table 1 (LaLonde baseline estimates).
 
 # %% [markdown]
 # ## 1. Setup
@@ -53,7 +53,7 @@ from src.learners import get_learner, LALONDE_LEARNERS
 from src.dml import DMLEstimator
 from src.tuning import tune_rf_for_data
 
-# Academic matplotlib settings (matching Monte Carlo figures)
+# Matplotlib configuration
 plt.rcParams.update({
     'font.family': 'serif',
     'font.serif': ['Times New Roman', 'DejaVu Serif', 'serif'],
@@ -81,11 +81,6 @@ RESULTS_DIR.mkdir(exist_ok=True)
 # Random seed for reproducibility
 RANDOM_STATE = 42
 
-print("Setup complete.")
-print("=" * 60)
-print("=" * 60)
-print("LALONDE APPLICATION: κ Diagnostic in Canonical Data")
-print("=" * 60)
 print(f"Experimental Benchmark ATE: ${EXPERIMENTAL_BENCHMARK:,}")
 
 # %% [markdown]
@@ -109,7 +104,7 @@ summary_obs = get_sample_summary(y_obs, d_obs, X_obs)
 print(f"\nObservational Sample: N={len(y_obs)}")
 print(f"  Treated: {int(d_obs.sum())}, Control: {int(len(d_obs) - d_obs.sum())}")
 print(f"  Naive ATE: ${summary_obs['naive_ate']:,.0f}")
-print("\n⚠️ Note: The observational naive ATE is negative due to selection bias!")
+print("Note: The observational naive difference is negative, reflecting selection into treatment.")
 
 # %% [markdown]
 # ## 3. RF Hyperparameter Tuning
@@ -196,8 +191,8 @@ print(f"\nBaseline results saved to: {baseline_path}")
 # %% [markdown]
 # ## 5. Conditioning Diagnostic
 #
-# Reports $\hat{\kappa}_{\text{oof}}$ for each sample. Per **Theorem 3.11**, higher $\kappa$
-# implies greater sensitivity to nuisance estimation error.
+# Reports κ̂_oof for each sample. Per Theorem 3.8, higher κ implies
+# greater sensitivity to nuisance estimation error.
 
 # %%
 print("\n" + "=" * 60)
@@ -223,25 +218,23 @@ print(f"  Ratio: {obs_range/exp_range:.1f}x more dispersion in observational sam
 # %% [markdown]
 # ## 6. Forest Plot (Figure 3)
 #
-# Compares DML estimates across learners. The experimental sample ($\hat{\kappa} \approx 1$)
-# shows tight clustering around the benchmark; the observational sample ($\hat{\kappa} > 2$)
+# Compares DML estimates across learners. The experimental sample (κ̂ ≈ 1)
+# shows tight clustering around the benchmark; the observational sample (κ̂ > 2)
 # exhibits greater learner disagreement, consistent with higher conditioning.
 #
-# **→ Produces Figure 3 in the paper.**
+# Produces Figure 3 in the paper.
 
 # %%
-# =============================================================================
-# FOREST PLOT - ACADEMIC STYLE (Matching Monte Carlo Figures)
-# =============================================================================
+# Forest plot
 
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 
-# Academic color palette - muted, professional
+# Color palette
 COLORS = {
-    'Experimental': '#2ca02c',     # Muted green
-    'Observational': '#d62728',    # Muted red
-    'benchmark': '#1f77b4',        # Muted blue
+    'Experimental': '#2ca02c',
+    'Observational': '#d62728',
+    'benchmark': '#1f77b4',
 }
 
 fig, ax = plt.subplots(figsize=(10, 7))
@@ -282,8 +275,8 @@ ax.axvline(x=0, color='gray', linestyle='-', linewidth=0.8, alpha=0.5, zorder=0)
 # Horizontal separator between samples
 ax.axhline(y=n_exp - 0.5, color='black', linestyle='-', linewidth=0.5, alpha=0.3)
 
-# Y-axis labels
-y_labels = [f"{row['Learner']}" for _, row in df_plot.iterrows()]
+# Y-axis labels (replace RF_Tuned with RF for display)
+y_labels = [f"{row['Learner'].replace('_Tuned', '')}" for _, row in df_plot.iterrows()]
 ax.set_yticks(df_plot['y_pos'])
 ax.set_yticklabels(y_labels, fontsize=10)
 
@@ -300,7 +293,7 @@ ax.grid(True, alpha=0.3, axis='x', linestyle='-', linewidth=0.5)
 ax.invert_yaxis()
 ax.tick_params(axis='both', which='major', labelsize=10)
 
-# Simple square legend box (academic style)
+# Legend
 legend_elements = [
     Patch(facecolor=COLORS['Experimental'], edgecolor='black', linewidth=0.5,
           label=f'Experimental (κ ≈ {df_exp["Kappa"].mean():.1f})'),
@@ -315,15 +308,15 @@ ax.legend(handles=legend_elements, loc='lower right', fontsize=9,
 plt.tight_layout()
 plt.savefig(RESULTS_DIR / 'lalonde_forest_plot.pdf', dpi=300, bbox_inches='tight', facecolor='white')
 plt.savefig(RESULTS_DIR / 'lalonde_forest_plot.png', dpi=300, bbox_inches='tight', facecolor='white')
-print(f"\n✓ Saved: {RESULTS_DIR / 'lalonde_forest_plot.pdf'}")
-plt.show()
+print(f"Saved: {RESULTS_DIR / 'lalonde_forest_plot.pdf'}")
+# plt.show()
 
 # %% [markdown]
-# ## 7. Summary (Table 8)
+# ## 7. Summary (Table 1)
 #
-# Reports DML estimates, standard errors, and $\hat{\kappa}_{\text{oof}}$ by sample and learner.
+# Reports DML estimates, standard errors, and κ̂_oof by sample and learner.
 #
-# **→ Produces Table 8 in the paper (Appendix).**
+# Produces Table 1 in the main paper.
 
 # %%
 print("\n" + "=" * 80)
@@ -342,17 +335,14 @@ print(f"{'N (sample size)':<25} {n_exp:>15,} {n_obs:>15,}")
 print(f"{'Mean κ':<25} {kappa_exp_mean:>15.2f} {kappa_obs_mean:>15.2f}")
 print(f"{'Estimate dispersion':<25} ${exp_range:>13,.0f} ${obs_range:>13,.0f}")
 
-print(f"\n\n→ Dispersion ratio (Obs/Exp): {obs_range/exp_range:.1f}x")
-print(f"→ Higher κ in observational sample corresponds to greater learner disagreement")
+print(f"Dispersion ratio (Obs/Exp): {obs_range/exp_range:.1f}x")
+print(f"Higher κ in observational sample corresponds to greater learner disagreement.")
 
 # %%
 # Save final results
 df_baseline.to_csv(RESULTS_DIR / 'lalonde_results.csv', index=False)
 
-print("\n" + "=" * 60)
-print("LALONDE ANALYSIS COMPLETE")
-print("=" * 60)
-print(f"\nResults saved to: {RESULTS_DIR}")
+print(f"Results saved to: {RESULTS_DIR}")
 print("  - lalonde_results.csv")
 print("  - lalonde_baseline_results.csv")
 print("  - lalonde_forest_plot.pdf / .png")

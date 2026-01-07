@@ -1,8 +1,7 @@
 # Ill-Conditioned Orthogonal Scores in Double Machine Learning: Replication Package
 
-[![arXiv](https://img.shields.io/badge/arXiv-2501.XXXXX-b31b1b.svg)](https://arxiv.org/abs/2501.XXXXX)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
 This repository contains the replication materials for the paper **"Ill-Conditioned Orthogonal Scores in Double Machine Learning"**. It provides the source code and data necessary to reproduce all simulation results (Section 5) and empirical applications (Section 6) presented in the manuscript.
 
@@ -52,9 +51,9 @@ The master script `run_all.py` executes the following experiments, which corresp
 |---------------|-------------|-------------------|-----------------|
 | **Figure 1** | Bias Amplification Mechanism | `corrupted_oracle_analysis.py` | `figure1_bias_amplification.pdf` |
 | **Figure 2** | Coverage Degradation | `corrupted_oracle_analysis.py` | `figure2_coverage_analysis.pdf` |
-| **Table 2** | Simulation Aggregates | `corrupted_oracle_analysis.py` | `corrupted_oracle_aggregates.csv` |
+| **Tables S1-S6** | Simulation Aggregates (Supplement) | `corrupted_oracle_analysis.py` | `corrupted_oracle_aggregates.csv` |
 | **Figure 3** | LaLonde Forest Plot | `lalonde_application.py` | `lalonde_forest_plot.pdf` |
-| **Table 3** | LaLonde Estimates | `lalonde_application.py` | `lalonde_results.csv` |
+| **Table 1** | LaLonde Estimates | `lalonde_application.py` | `lalonde_baseline_results.csv` |
 
 All outputs are saved to the `results/` directory.
 
@@ -109,7 +108,6 @@ If you use this code or findings in your research, please cite:
 @article{saco2025illconditioned,
   title={Ill-Conditioned Orthogonal Scores in Double Machine Learning},
   author={Saco, Gabriel},
-  journal={arXiv preprint arXiv:2501.XXXXX},
   year={2025}
 }
 ```
