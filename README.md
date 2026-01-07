@@ -5,20 +5,20 @@
 
 This repository contains the replication materials for the paper **"Ill-Conditioned Orthogonal Scores in Double Machine Learning"**. It provides the source code and data necessary to reproduce all simulation results (Section 5) and empirical applications (Section 6) presented in the manuscript.
 
-## 📋 Replication Capabilities
+## Replication Capabilities
 
-This package is designed for full transparency and ease of replication:
+This package is designed for transparency and ease of replication:
 
 | Feature | Status | Implementation |
 |---------|--------|----------------|
-| **One-Click Reproduction** | ✓ | `run_all.py` master script |
-| **Deterministic Execution** | ✓ | Fixed random seeds (e.g., `BASE_SEED=42`) |
-| **Dependency Locking** | ✓ | `requirements-lock.txt` for exact environments |
-| **Data Access** | ✓ | Automatic retrieval of LaLonde data from NBER |
+| **One-Click Reproduction** | Yes | `run_all.py` master script |
+| **Deterministic Execution** | Yes | Fixed random seeds (e.g., `BASE_SEED=42`) |
+| **Dependency Management** | Yes | `requirements.txt` for python environment |
+| **Data Access** | Yes | Automatic retrieval of LaLonde data from NBER |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 To reproduce all figures and tables from the paper with a single command:
 
@@ -32,10 +32,7 @@ python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# 3. specific for exact reproducibility (Optional)
-# pip install -r requirements-lock.txt
-
-# 4. Generate all results
+# 3. Generate all results
 python run_all.py
 ```
 
@@ -43,7 +40,7 @@ python run_all.py
 
 ---
 
-## 📊 Results Mapping
+## Results Mapping
 
 The master script `run_all.py` executes the following experiments, which correspond directly to the paper's elements:
 
@@ -59,13 +56,12 @@ All outputs are saved to the `results/` directory.
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 dml-diagnostic/
-├── run_all.py               # ⭐ Master replication script
-├── requirements.txt         # Abstract dependencies
-├── requirements-lock.txt    # Exact frozen dependencies for reproducibility
+├── run_all.py               # Master replication script
+├── requirements.txt         # Python dependencies
 ├── notebooks/               # Experiment source code
 │   ├── corrupted_oracle_analysis.py   # Main simulation study (Section 5)
 │   └── lalonde_application.py         # Empirical application (Section 6)
@@ -75,12 +71,12 @@ dml-diagnostic/
 │   ├── dgp.py               # Data generating processes
 │   ├── data.py              # LaLonde data loader
 │   └── tuning.py            # Hyperparameter tuning logic
-└── results/                 # directory for generated artifacts
+└── results/                 # Directory for generated artifacts
 ```
 
 ---
 
-## 🔍 Detailed Usage
+## Detailed Usage
 
 ### Running Individual Experiments
 Each script in `notebooks/` is a self-contained Jupytext file that can be executed as a standard Python script or opened as a Jupyter notebook.
@@ -95,12 +91,11 @@ python notebooks/lalonde_application.py
 
 ### Reproducibility Notes
 - **Random Seeds**: All stochastic processes are controlled via global seeds initialized in `run_all.py` and individual scripts.
-- **Environment**: For exact reproduction of the numerical results, we recommend using the versions specified in `requirements-lock.txt`.
 - **Hardware**: Tested on macOS (M-series) and Linux. Runtime may vary by core count.
 
 ---
 
-## 📖 Citation
+## Citation
 
 If you use this code or findings in your research, please cite:
 
@@ -114,6 +109,6 @@ If you use this code or findings in your research, please cite:
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
